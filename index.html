@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lager Prototyp</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="kicker">Lager</div>
+      <div class="title" id="pageTitle">Übersicht</div>
+    </div>
+
+    <div class="topActions">
+      <button class="btn ghost" id="goHomeBtn" title="Übersicht">Übersicht</button>
+      <button class="btn" id="newItemBtn" title="Neuen Artikel anlegen">+ Artikel</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="homeView" class="view">
+      <div class="toolbar">
+        <input id="searchInput" class="input" placeholder="Suchen: Kaffee, Milch, Filter …" />
+        <div class="pinBox">
+          <input id="pinInput" class="input" placeholder="PIN (für Änderungen)" inputmode="numeric" />
+        </div>
+      </div>
+
+      <div id="itemsGrid" class="grid"></div>
+
+      <div class="muted" id="emptyHint" style="display:none;">
+        Noch keine Artikel. Klicke auf “+ Artikel”.
+      </div>
+    </section>
+
+    <section id="detailView" class="view" style="display:none;">
+      <div class="detailHeader">
+        <button class="btn ghost" id="backBtn">Zurück</button>
+        <div class="muted" id="detailId"></div>
+      </div>
+
+      <div class="card detailCard">
+        <div class="detailMedia">
+          <div class="imgFrame">
+            <img id="detailImg" alt="Artikelbild" />
+            <div id="detailImgPlaceholder" class="imgPlaceholder">Kein Bild</div>
+          </div>
+
+          <label class="btn secondary fileBtn">
+            Bild hochladen
+            <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+          </label>
+        </div>
+
+        <div class="detailInfo">
+          <div class="row">
+            <label>Name</label>
+            <input id="nameInput" class="input" maxlength="80" />
+          </div>
+
+          <div class="twoCol">
+            <div class="stat">
+              <div class="label">Soll</div>
+              <input id="targetInput" class="input" type="number" min="0" step="1" />
+            </div>
+            <div class="stat">
+              <div class="label">Ist</div>
+              <div class="big" id="currentQtyText">0</div>
+            </div>
+          </div>
+
+          <div class="pillRow">
+            <div class="pill" id="statusPill">OK</div>
+            <div class="meta" id="metaLine"></div>
+          </div>
+
+          <div class="card inner">
+            <div class="row">
+              <label>Wer war das? (Pflicht)</label>
+              <input id="actorInput" class="input" placeholder="z.B. Eren, Max, Schicht 2" />
+            </div>
+
+            <div class="actions">
+              <button class="btn" data-delta="-5">-5</button>
+              <button class="btn" data-delta="-1">-1</button>
+              <button class="btn primary" data-delta="1">+1</button>
+              <button class="btn primary" data-delta="5">+5</button>
+            </div>
+
+            <div class="saveRow">
+              <button class="btn" id="saveMetaBtn">Name/Soll speichern</button>
+            </div>
+
+            <div class="hint" id="hint"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sectionTitle">Letzte Änderungen</div>
+        <div id="logsList" class="logs"></div>
+      </div>
+
+      <div class="card">
+        <div class="sectionTitle">QR-Link</div>
+        <div class="muted" id="qrLink"></div>
+        <div class="muted small">Diesen Link als QR-Code drucken und am Regal anbringen.</div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="newItemDialog" class="dialog">
+    <form method="dialog" class="dialogBody">
+      <div class="dialogTitle">Neuen Artikel anlegen</div>
+
+      <div class="row">
+        <label>ID (für QR, z.B. kaffee_espresso_1kg)</label>
+        <input id="newId" class="input" placeholder="nur a-z 0-9 _ -" />
+      </div>
+
+      <div class="row">
+        <label>Name</label>
+        <input id="newName" class="input" placeholder="Espresso Bohnen 1 kg" />
+      </div>
+
+      <div class="twoCol">
+        <div class="row">
+          <label>Soll</label>
+          <input id="newTarget" class="input" type="number" min="0" step="1" value="10" />
+        </div>
+        <div class="row">
+          <label>Ist</label>
+          <input id="newCurrent" class="input" type="number" min="0" step="1" value="0" />
+        </div>
+      </div>
+
+      <div class="hint" id="newHint"></div>
+
+      <div class="dialogActions">
+        <button class="btn ghost" value="cancel">Abbrechen</button>
+        <button class="btn" id="createBtn" value="default">Anlegen</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
