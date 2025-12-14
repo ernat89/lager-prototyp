@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Lager Prototype</title>
   <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Supabase JS (UMD) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -15,232 +17,250 @@
     </div>
 
     <div class="topActions">
-      <button id="navOverview" class="btn ghost">Übersicht</button>
-      <button id="navTrash" class="btn ghost">Papierkorb</button>
-      <button id="newItemBtn" class="btn primary">+ Artikel</button>
+      <button id="btnHome" class="btn ghost">Übersicht</button>
+      <button id="btnOpenCreate" class="btn primary">+ Artikel</button>
     </div>
   </header>
 
-  <div class="statusWrap">
-    <div id="statusLine" class="statusLine">Bereit</div>
-  </div>
-
   <main class="container">
+    <!-- LIST VIEW -->
+    <section id="viewList" class="view">
+      <div class="controls">
+        <div class="field grow">
+          <input id="searchInput" class="input" type="search" placeholder="Suchen: Kaffee, Milch, Filter ..." />
+        </div>
 
-    <section id="overviewSection" class="section">
-      <div class="toolbar">
-        <input id="searchInput" class="input" placeholder="Suchen: Name, ID, Standort, Kategorie …" />
-        <select id="categoryFilter" class="select">
-          <option value="">Alle Kategorien</option>
-        </select>
+        <div class="field">
+          <select id="categoryFilter" class="select">
+            <option value="">Alle Kategorien</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <select id="locationFilter" class="select">
+            <option value="">Alle Standorte</option>
+          </select>
+        </div>
       </div>
 
-      <div id="homeMessage" class="message hidden"></div>
+      <div id="listHint" class="hint"></div>
+
       <div id="itemsGrid" class="grid"></div>
-      <div id="emptyHint" class="emptyHint hidden">Keine Artikel gefunden.</div>
     </section>
 
-    <section id="detailSection" class="section hidden">
-      <button id="backBtn" class="btn ghost">Zurück</button>
+    <!-- DETAIL VIEW -->
+    <section id="viewDetail" class="view hidden">
+      <div class="detailTop">
+        <button id="btnBack" class="btn ghost">Zurück</button>
+        <div class="detailTitleWrap">
+          <div class="detailTitle" id="detailTitle">Artikel</div>
+          <div class="detailMeta" id="detailMeta"></div>
+        </div>
+        <button id="btnDelete" class="btn danger">Löschen</button>
+      </div>
 
-      <div id="detailCard" class="detailCard">
-        <div class="detailLeft">
-          <div class="imageBox" id="detailImageBox">
-            <div class="imagePlaceholder" id="detailNoImage">Kein Bild</div>
-            <img id="detailImage" class="detailImage hidden" alt="Artikelbild" />
+      <div class="detailLayout">
+        <div class="card">
+          <div class="imageBox">
+            <img id="detailImage" alt="" class="image hidden" />
+            <div id="detailNoImage" class="noImage">Kein Bild</div>
           </div>
 
-          <div class="imageActions">
+          <div class="row gap">
             <button id="btnTakePhoto" class="btn secondary">Foto aufnehmen</button>
-            <button id="btnPickFile" class="btn secondary">Aus Galerie wählen</button>
-
-            <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden />
-            <input id="fileInput" type="file" accept="image/*" hidden />
+            <button id="btnPickPhoto" class="btn secondary">Bild auswählen</button>
           </div>
 
+          <!-- File inputs -->
+          <input id="fileCamera" type="file" accept="image/*" capture="environment" hidden />
+          <input id="filePicker" type="file" accept="image/*" hidden />
+
+          <div class="smallHint" id="imageHint"></div>
+        </div>
+
+        <div class="card">
+          <div class="formGrid">
+            <div class="field">
+              <label class="label">ID</label>
+              <input id="d_id" class="input" disabled />
+            </div>
+
+            <div class="field span2">
+              <label class="label">Name (Pflicht)</label>
+              <input id="d_name" class="input" placeholder="z.B. Espresso Kapseln" />
+            </div>
+
+            <div class="field">
+              <label class="label">Kategorie (Pflicht)</label>
+              <input id="d_category" class="input" placeholder="z.B. Kaffee" list="categoryList" />
+              <datalist id="categoryList"></datalist>
+            </div>
+
+            <div class="field">
+              <label class="label">Standort (Pflicht)</label>
+              <input id="d_location" class="input" placeholder="z.B. Küche Regal 2" list="locationList" />
+              <datalist id="locationList"></datalist>
+            </div>
+
+            <div class="field">
+              <label class="label">Einheit</label>
+              <input id="d_unit" class="input" placeholder="z.B. Stück" />
+            </div>
+
+            <div class="field">
+              <label class="label">Mindestbestand</label>
+              <input id="d_min" class="input" type="number" min="0" step="1" />
+            </div>
+
+            <div class="field">
+              <label class="label">Soll (Pflicht)</label>
+              <input id="d_target" class="input" type="number" min="0" step="1" />
+            </div>
+
+            <div class="field">
+              <label class="label">Ist (Pflicht)</label>
+              <input id="d_current" class="input" type="number" min="0" step="1" />
+            </div>
+
+            <div class="field">
+              <label class="label">Packung Name</label>
+              <input id="d_pack_name" class="input" placeholder="z.B. 1 Packung" />
+            </div>
+
+            <div class="field">
+              <label class="label">Packung Größe</label>
+              <input id="d_pack_size" class="input" type="number" min="0" step="1" placeholder="z.B. 16" />
+            </div>
+          </div>
+
+          <div class="row right gap">
+            <button id="btnSaveMeta" class="btn primary">Speichern</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="stockActions">
+            <div class="stockBox">
+              <div class="stockLabel">Ist</div>
+              <div id="stockValue" class="stockValue">0</div>
+              <div id="stockState" class="pill ok">OK</div>
+            </div>
+
+            <div class="deltaRow">
+              <button class="btn secondary" data-delta="-5">-5</button>
+              <button class="btn secondary" data-delta="-1">-1</button>
+              <button class="btn secondary" data-delta="+1">+1</button>
+              <button class="btn secondary" data-delta="+5">+5</button>
+              <button id="btnDeltaPackMinus" class="btn secondary">-1 Pack</button>
+              <button id="btnDeltaPackPlus" class="btn secondary">+1 Pack</button>
+            </div>
+
+            <div class="smallHint" id="packHint"></div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="sectionTitle">Letzte Änderungen</div>
+          <div id="logList" class="logList"></div>
+
+          <div class="sectionTitle">QR-Link</div>
           <div class="qrBox">
-            <div class="qrTitle">QR-Link</div>
-            <div id="qrLink" class="qrLink"></div>
-            <div class="qrHint">Diesen Link als QR-Code drucken und ans Regal kleben.</div>
-          </div>
-        </div>
-
-        <div class="detailRight">
-          <div class="row">
-            <div class="label">ID</div>
-            <div id="detailId" class="mono"></div>
-          </div>
-
-          <div class="row">
-            <div class="label">Name</div>
-            <input id="detailName" class="input" />
-          </div>
-
-          <div class="row two">
-            <div>
-              <div class="label">Kategorie</div>
-              <input id="detailCategory" class="input" />
-            </div>
-            <div>
-              <div class="label">Standort</div>
-              <input id="detailLocation" class="input" />
-            </div>
-          </div>
-
-          <div class="row three">
-            <div>
-              <div class="label">Soll</div>
-              <input id="detailTarget" class="input" type="number" min="0" />
-            </div>
-            <div>
-              <div class="label">Mindestbestand</div>
-              <input id="detailMin" class="input" type="number" min="0" />
-            </div>
-            <div>
-              <div class="label">Einheit</div>
-              <input id="detailUnit" class="input" placeholder="z.B. Stück, Kapsel" />
-            </div>
-          </div>
-
-          <div class="row two">
-            <div>
-              <div class="label">Verpackung</div>
-              <input id="detailPackName" class="input" placeholder="z.B. Packung, Karton" />
-            </div>
-            <div>
-              <div class="label">Packungsgröße</div>
-              <input id="detailPackSize" class="input" type="number" min="1" placeholder="z.B. 16" />
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="label">Ist</div>
-            <div class="bigNumber" id="detailCurrent">0</div>
-          </div>
-
-          <div class="row">
-            <div class="label">Wer macht die Änderung?</div>
-            <input id="detailActor" class="input" placeholder="Name (Pflicht)" />
-          </div>
-
-          <div class="adjustRow">
-            <button class="btn ghost" data-delta="-5">-5</button>
-            <button class="btn ghost" data-delta="-1">-1</button>
-            <button class="btn ghost" data-delta="+1">+1</button>
-            <button class="btn ghost" data-delta="+5">+5</button>
-            <button id="btnPackMinus" class="btn ghost hidden">-1 Pack</button>
-            <button id="btnPackPlus" class="btn ghost hidden">+1 Pack</button>
-          </div>
-
-          <div class="row">
-            <button id="btnSaveMeta" class="btn primary">Stammdaten speichern</button>
-          </div>
-
-          <div class="row metaLine" id="detailMetaLine"></div>
-
-          <div class="row dangerRow">
-            <button id="btnSoftDelete" class="btn danger">In Papierkorb verschieben</button>
-          </div>
-
-          <div class="logWrap">
-            <div class="logTitle">Letzte Änderungen</div>
-            <div id="detailLogs" class="logs"></div>
+            <div id="qrLink" class="mono"></div>
+            <div class="smallHint">Diesen Link als QR-Code drucken und am Regal anbringen.</div>
           </div>
         </div>
       </div>
     </section>
-
-    <section id="trashSection" class="section hidden">
-      <div class="trashHeader">
-        <div class="trashTitle">Papierkorb</div>
-        <div class="trashHint">Hier liegen gelöschte Artikel. Du kannst sie wiederherstellen oder endgültig löschen.</div>
-      </div>
-
-      <div id="trashMessage" class="message hidden"></div>
-      <div id="trashGrid" class="grid"></div>
-      <div id="trashEmpty" class="emptyHint hidden">Papierkorb ist leer.</div>
-    </section>
-
   </main>
 
-  <dialog id="newItemDialog" class="dialog">
-    <div class="dialogTitle">Neuen Artikel anlegen</div>
+  <!-- CREATE MODAL -->
+  <div id="createModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="modalTitle">Neuen Artikel anlegen</div>
 
-    <div class="dialogGrid">
-      <div class="field">
-        <div class="label">ID (für QR)</div>
-        <input id="newId" class="input" placeholder="z.B. kaffee_espresso_1kg" />
-      </div>
-
-      <div class="field">
-        <div class="label">Name</div>
-        <input id="newName" class="input" placeholder="z.B. Espresso Kapseln" />
-      </div>
-
-      <div class="field">
-        <div class="label">Kategorie</div>
-        <input id="newCategoryFree" class="input" placeholder="z.B. Kaffee" />
-      </div>
-
-      <div class="field">
-        <div class="label">Standort</div>
-        <input id="newLocation" class="input" placeholder="z.B. Küche Regal A" />
-      </div>
-
-      <div class="field twoCol">
-        <div>
-          <div class="label">Soll</div>
-          <input id="newTarget" class="input" type="number" min="0" value="10" />
+      <div class="formGrid">
+        <div class="field span2">
+          <label class="label">ID (Pflicht, eindeutig)</label>
+          <input id="c_id" class="input" placeholder="z.B. kaffee_espresso_kapseln" />
+          <div class="smallHint">Erlaubt: a-z, 0-9, _ und -</div>
         </div>
-        <div>
-          <div class="label">Ist</div>
-          <input id="newCurrent" class="input" type="number" min="0" value="0" />
+
+        <div class="field span2">
+          <label class="label">Name (Pflicht)</label>
+          <input id="c_name" class="input" placeholder="z.B. Espresso Kapseln" />
+        </div>
+
+        <div class="field">
+          <label class="label">Kategorie (Pflicht)</label>
+          <input id="c_category" class="input" placeholder="z.B. Kaffee" list="categoryList" />
+        </div>
+
+        <div class="field">
+          <label class="label">Standort (Pflicht)</label>
+          <input id="c_location" class="input" placeholder="z.B. Küche Regal 2" list="locationList" />
+        </div>
+
+        <div class="field">
+          <label class="label">Soll (Pflicht)</label>
+          <input id="c_target" class="input" type="number" min="0" step="1" value="0" />
+        </div>
+
+        <div class="field">
+          <label class="label">Ist (Pflicht)</label>
+          <input id="c_current" class="input" type="number" min="0" step="1" value="0" />
+        </div>
+
+        <div class="field">
+          <label class="label">Mindestbestand</label>
+          <input id="c_min" class="input" type="number" min="0" step="1" value="0" />
+        </div>
+
+        <div class="field">
+          <label class="label">Einheit</label>
+          <input id="c_unit" class="input" value="Stück" />
+        </div>
+
+        <div class="field">
+          <label class="label">Packung Name</label>
+          <input id="c_pack_name" class="input" placeholder="z.B. 1 Packung" />
+        </div>
+
+        <div class="field">
+          <label class="label">Packung Größe</label>
+          <input id="c_pack_size" class="input" type="number" min="0" step="1" placeholder="z.B. 16" />
         </div>
       </div>
 
-      <div class="field">
-        <div class="label">Mindestbestand</div>
-        <input id="newMin" class="input" type="number" min="0" value="0" />
-      </div>
+      <div id="createHint" class="hint"></div>
 
-      <div class="field">
-        <div class="label">Einheit</div>
-        <input id="newUnitName" class="input" placeholder="z.B. Stück, Kapsel" value="Stück" />
+      <div class="row right gap">
+        <button id="btnCreateCancel" class="btn ghost">Abbrechen</button>
+        <button id="btnCreate" class="btn primary">Anlegen</button>
       </div>
-
-      <div class="field twoCol">
-        <div>
-          <div class="label">Verpackung</div>
-          <input id="newPackName" class="input" placeholder="z.B. Packung" />
-        </div>
-        <div>
-          <div class="label">Packungsgröße</div>
-          <input id="newPackSize" class="input" type="number" min="1" placeholder="z.B. 16" />
-        </div>
-      </div>
-
-      <div class="field">
-        <div class="label">Wer legt an? (Pflicht)</div>
-        <input id="newActor" class="input" placeholder="Name" />
-      </div>
-
-      <div id="newHint" class="hint"></div>
     </div>
+  </div>
 
-    <div class="dialogActions">
-      <button id="newCancel" class="btn ghost">Abbrechen</button>
-      <button id="newCreate" class="btn primary">Anlegen</button>
-    </div>
-  </dialog>
+  <!-- ACTOR MODAL -->
+  <div id="actorModal" class="modal hidden">
+    <div class="modalCard small">
+      <div class="modalTitle">Wer hat das gemacht?</div>
+      <div class="smallHint">Bitte Name eingeben, damit Änderungen nachvollziehbar sind.</div>
 
-  <dialog id="confirmDialog" class="dialog">
-    <div class="dialogTitle" id="confirmTitle">Bestätigen</div>
-    <div class="confirmText" id="confirmText"></div>
-    <div class="dialogActions">
-      <button id="confirmNo" class="btn ghost">Abbrechen</button>
-      <button id="confirmYes" class="btn danger">OK</button>
+      <div class="field">
+        <label class="label">Name (Pflicht)</label>
+        <input id="actorInput" class="input" placeholder="z.B. Eren" />
+      </div>
+
+      <div id="actorHint" class="hint"></div>
+
+      <div class="row right gap">
+        <button id="btnActorCancel" class="btn ghost">Abbrechen</button>
+        <button id="btnActorOk" class="btn primary">Weiter</button>
+      </div>
     </div>
-  </dialog>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
 
   <script src="./app.js"></script>
 </body>
