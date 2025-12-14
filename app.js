@@ -1,46 +1,38 @@
-/**********************************************************
- * Lager Prototype - app.js (komplett)
- * - Supabase Storage + DB
- * - Actor wird NIE vorausgefüllt
- * - Wenn Actor fehlt: Popup
- **********************************************************/
+/*******************************************************
+ * STABILES Lager-Prototyp JS
+ * - Läuft auch wenn DB-Spalten anders heißen (ist/soll vs current_qty/target_qty)
+ * - Sichtbare Errors im UI
+ * - Actor Popup Pflicht
+ * - Bilderupload in Bucket "images"
+ *******************************************************/
 
-/** 1) HIER EINTRAGEN */
 const SUPABASE_URL = "https://fiwatlffqgevxvmrsmvz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpd2F0bGZmcWdldnh2bXJzbXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2ODY1MDYsImV4cCI6MjA4MTI2MjUwNn0.5jQBokoo25GFMBWgluBLN5Yy_NitrvYas8Pyxsj8AZA";
 const EDIT_PIN = "81243";
+const BUCKET = "images";
+const TABLE = "items";
 
-/** Optional: simpler Edit-PIN (nur UI-Schutz, kein echter Security Layer) */
-const EDIT_PIN = "81243";
-
-/** Tabellen/Bucket */
-const TABLE_ITEMS = "items";
-const TABLE_LOGS = "logs";
-const BUCKET_IMAGES = "images";
-
-/** Supabase Client */
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/** State */
-let allItems = [];
-let currentItem = null;
-let pinOkUntil = 0; // 10min Cache
-let actorResolver = null;
+// UI
+const statusText = document.getElementById("statusText");
+const debugBox = document.getElementById("debugBox");
+const btnReload = document.getElementById("btnReload");
 
-/** DOM */
 const viewList = document.getElementById("viewList");
 const viewDetail = document.getElementById("viewDetail");
+const brandSub = document.getElementById("brandSub");
 
-const itemsGrid = document.getElementById("itemsGrid");
+const q = document.getElementById("q");
+const cat = document.getElementById("cat");
+const loc = document.getElementById("loc");
 const listHint = document.getElementById("listHint");
-
-const searchInput = document.getElementById("searchInput");
-const categoryFilter = document.getElementById("categoryFilter");
-const locationFilter = document.getElementById("locationFilter");
+const grid = document.getElementById("grid");
 
 const btnHome = document.getElementById("btnHome");
 const btnBack = document.getElementById("btnBack");
-const btnOpenCreate = document.getElementById("btnOpenCreate");
+const btnCreateOpen = document.getElementById("btnCreateOpen");
+const toast = document.getElementById("toast");
 
 const createModal = document.getElementById("createModal");
 const btnCreateCancel = document.getElementById("btnCreateCancel");
@@ -48,75 +40,94 @@ const btnCreate = document.getElementById("btnCreate");
 const createHint = document.getElementById("createHint");
 
 const actorModal = document.getElementById("actorModal");
-const actorInput = document.getElementById("actorInput");
+const actorInput = document.getElementById("actor");
 const actorHint = document.getElementById("actorHint");
 const btnActorCancel = document.getElementById("btnActorCancel");
 const btnActorOk = document.getElementById("btnActorOk");
 
-const toast = document.getElementById("toast");
+const catList = document.getElementById("catList");
+const locList = document.getElementById("locList");
 
-/** Detail DOM */
-const detailTitle = document.getElementById("detailTitle");
-const detailMeta = document.getElementById("detailMeta");
+// Detail fields
+const dTitle = document.getElementById("dTitle");
+const dMeta = document.getElementById("dMeta");
 const btnDelete = document.getElementById("btnDelete");
 
-const detailImage = document.getElementById("detailImage");
-const detailNoImage = document.getElementById("detailNoImage");
-const imageHint = document.getElementById("imageHint");
+const img = document.getElementById("img");
+const noimg = document.getElementById("noimg");
+const imgHint = document.getElementById("imgHint");
+const btnCamera = document.getElementById("btnCamera");
+const btnPicker = document.getElementById("btnPicker");
+const fileCam = document.getElementById("fileCam");
+const filePick = document.getElementById("filePick");
 
-const btnTakePhoto = document.getElementById("btnTakePhoto");
-const btnPickPhoto = document.getElementById("btnPickPhoto");
-const fileCamera = document.getElementById("fileCamera");
-const filePicker = document.getElementById("filePicker");
-
-const d_id = document.getElementById("d_id");
-const d_name = document.getElementById("d_name");
-const d_category = document.getElementById("d_category");
-const d_location = document.getElementById("d_location");
-const d_unit = document.getElementById("d_unit");
-const d_min = document.getElementById("d_min");
-const d_target = document.getElementById("d_target");
-const d_current = document.getElementById("d_current");
-const d_pack_name = document.getElementById("d_pack_name");
-const d_pack_size = document.getElementById("d_pack_size");
+const f_id = document.getElementById("f_id");
+const f_name = document.getElementById("f_name");
+const f_cat = document.getElementById("f_cat");
+const f_loc = document.getElementById("f_loc");
+const f_target = document.getElementById("f_target");
+const f_current = document.getElementById("f_current");
+const f_pack = document.getElementById("f_pack");
 
 const btnSaveMeta = document.getElementById("btnSaveMeta");
 
-const stockValue = document.getElementById("stockValue");
-const stockState = document.getElementById("stockState");
+const stock = document.getElementById("stock");
+const state = document.getElementById("state");
 const packHint = document.getElementById("packHint");
+const btnPackMinus = document.getElementById("btnPackMinus");
+const btnPackPlus = document.getElementById("btnPackPlus");
+const qr = document.getElementById("qr");
 
-const logList = document.getElementById("logList");
-const qrLink = document.getElementById("qrLink");
-
-const categoryList = document.getElementById("categoryList");
-const locationList = document.getElementById("locationList");
-
-const btnDeltaPackMinus = document.getElementById("btnDeltaPackMinus");
-const btnDeltaPackPlus = document.getElementById("btnDeltaPackPlus");
-
-/** Create modal inputs */
+// Create fields
 const c_id = document.getElementById("c_id");
 const c_name = document.getElementById("c_name");
-const c_category = document.getElementById("c_category");
-const c_location = document.getElementById("c_location");
+const c_cat = document.getElementById("c_cat");
+const c_loc = document.getElementById("c_loc");
 const c_target = document.getElementById("c_target");
 const c_current = document.getElementById("c_current");
-const c_min = document.getElementById("c_min");
-const c_unit = document.getElementById("c_unit");
-const c_pack_name = document.getElementById("c_pack_name");
-const c_pack_size = document.getElementById("c_pack_size");
+const c_pack = document.getElementById("c_pack");
 
-/** Utils */
+// State
+let allRows = [];
+let current = null;
+let resolveActor = null;
+
+// Column mapping candidates (wir lesen * und interpretieren Keys)
+const COL = {
+  id: ["id", "item_id", "code"],
+  name: ["name", "titel", "title"],
+  category: ["category", "kategorie", "cat"],
+  location: ["location", "standort", "lagerort"],
+  target: ["target_qty", "soll", "target", "soll_qty"],
+  current: ["current_qty", "ist", "current", "ist_qty"],
+  pack: ["pack_size", "pack", "packung", "pack_qty"],
+  deletedAt: ["deleted_at", "deletedAt"],
+  image: ["image_path", "image_url", "imageUrl", "image", "img"]
+};
+
+function logDebug(obj) {
+  debugBox.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+}
+
+function setStatus(msg, extra) {
+  statusText.textContent = msg;
+  if (extra) logDebug(extra);
+}
+
 function toastMsg(msg, ms = 2200) {
   toast.textContent = msg;
   toast.classList.remove("hidden");
-  window.clearTimeout(toast._t);
-  toast._t = window.setTimeout(() => toast.classList.add("hidden"), ms);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.add("hidden"), ms);
 }
 
-function setHint(el, msg) {
-  el.textContent = msg || "";
+function esc(s) {
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
 function normalizeId(s) {
@@ -127,224 +138,508 @@ function normalizeId(s) {
     .replace(/[^a-z0-9_-]/g, "");
 }
 
-function isValidId(id) {
-  return /^[a-z0-9_-]+$/.test(id);
+function pick(row, keys) {
+  for (const k of keys) {
+    if (row && Object.prototype.hasOwnProperty.call(row, k)) return row[k];
+  }
+  return undefined;
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function formatTs(ts) {
-  if (!ts) return "";
-  try {
-    const d = new Date(ts);
-    return d.toLocaleString("de-DE", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
-  } catch { return String(ts); }
+function setValue(row, keys, value) {
+  // Setzt in Payload genau 1 passende Spalte
+  for (const k of keys) {
+    if (row && Object.prototype.hasOwnProperty.call(row, k)) {
+      row[k] = value;
+      return true;
+    }
+  }
+  // Wenn wir den Key nicht kennen (neue Inserts), nutzen wir den ersten Candidate als Default
+  row[keys[0]] = value;
+  return true;
 }
 
 function getPublicUrl(path) {
   if (!path) return "";
-  const { data } = supabase.storage.from(BUCKET_IMAGES).getPublicUrl(path);
-  // Cache buster damit Upload sofort sichtbar
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl + "?v=" + Date.now();
 }
 
-/** PIN */
-async function ensurePin() {
-  const now = Date.now();
-  if (now < pinOkUntil) return true;
-
-  const pin = window.prompt("PIN eingeben:");
-  if (!pin) return false;
-
-  if (pin.trim() !== EDIT_PIN) {
-    alert("Falscher PIN.");
-    return false;
-  }
-
-  pinOkUntil = Date.now() + 10 * 60 * 1000;
-  return true;
+function computeState(cur, target) {
+  const c = Number(cur || 0);
+  const t = Number(target || 0);
+  if (c < t) return { cls: "warn", text: "ZU WENIG" };
+  return { cls: "ok", text: "OK" };
 }
 
-/** Actor popup */
-function requireActor() {
+// Actor modal
+function needActor() {
   return new Promise((resolve) => {
-    actorResolver = resolve;
+    resolveActor = resolve;
     actorInput.value = "";
     actorHint.textContent = "";
     actorModal.classList.remove("hidden");
     setTimeout(() => actorInput.focus(), 0);
   });
 }
-
-function closeActorModal() {
+function closeActor(val) {
   actorModal.classList.add("hidden");
+  if (resolveActor) resolveActor(val);
+  resolveActor = null;
 }
-
-btnActorCancel.addEventListener("click", () => {
-  closeActorModal();
-  if (actorResolver) actorResolver(null);
-  actorResolver = null;
-});
-
+btnActorCancel.addEventListener("click", () => closeActor(null));
 btnActorOk.addEventListener("click", () => {
-  const name = (actorInput.value || "").trim();
-  if (name.length < 2) {
-    actorHint.textContent = "Bitte einen Namen eingeben.";
+  const v = (actorInput.value || "").trim();
+  if (v.length < 2) {
+    actorHint.textContent = "Bitte Namen eingeben.";
     return;
   }
-  closeActorModal();
-  if (actorResolver) actorResolver(name);
-  actorResolver = null;
+  closeActor(v);
 });
 
-/** Routing */
+// Views / routing
 function showList() {
+  brandSub.textContent = "Übersicht";
   viewDetail.classList.add("hidden");
   viewList.classList.remove("hidden");
-  document.querySelector(".brandSub").textContent = "Übersicht";
-  currentItem = null;
+  current = null;
 }
-
 function showDetail(item) {
-  currentItem = item;
+  brandSub.textContent = "Artikel";
   viewList.classList.add("hidden");
   viewDetail.classList.remove("hidden");
-  document.querySelector(".brandSub").textContent = "Artikel";
+  current = item;
   renderDetail();
 }
 
-function openItem(id) {
-  const item = allItems.find(x => x.id === id);
-  if (!item) {
-    toastMsg("Artikel nicht gefunden.");
+function route() {
+  const h = location.hash || "#/";
+  const m = h.match(/^#\/item\/(.+)$/);
+  if (m) {
+    const id = decodeURIComponent(m[1]);
+    const it = allRows.find(r => String(pick(r, COL.id)) === id);
+    if (it) showDetail(it);
+    else showList();
     return;
   }
-  window.location.hash = `#/item/${encodeURIComponent(id)}`;
+  showList();
 }
 
-/** Data loading */
-async function loadItems() {
-  setHint(listHint, "Lade …");
-  const { data, error } = await supabase
-    .from(TABLE_ITEMS)
-    .select("*")
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
+window.addEventListener("hashchange", route);
+btnHome.addEventListener("click", () => (location.hash = "#/"));
+btnBack.addEventListener("click", () => (location.hash = "#/"));
+btnReload.addEventListener("click", () => init());
 
-  if (error) {
-    console.error(error);
-    setHint(listHint, "Fehler beim Laden: " + error.message);
-    allItems = [];
+// Create modal
+btnCreateOpen.addEventListener("click", () => {
+  createHint.textContent = "";
+  c_id.value = "";
+  c_name.value = "";
+  c_cat.value = "";
+  c_loc.value = "";
+  c_target.value = "0";
+  c_current.value = "0";
+  c_pack.value = "";
+  createModal.classList.remove("hidden");
+  setTimeout(() => c_id.focus(), 0);
+});
+btnCreateCancel.addEventListener("click", () => createModal.classList.add("hidden"));
+
+// Filter events
+q.addEventListener("input", renderList);
+cat.addEventListener("change", renderList);
+loc.addEventListener("change", renderList);
+
+// Detail buttons
+document.querySelectorAll("[data-d]").forEach(b => {
+  b.addEventListener("click", async () => {
+    if (!current) return;
+    const actor = await needActor();
+    if (!actor) return;
+
+    const delta = Number(b.getAttribute("data-d"));
+    const cur = Number(pick(current, COL.current) || 0);
+    const next = Math.max(0, cur + delta);
+
+    await updateItemWithFallback(current, { current: next }, actor, `adjust ${delta}`);
+  });
+});
+
+btnPackMinus.addEventListener("click", async () => adjustPack(-1));
+btnPackPlus.addEventListener("click", async () => adjustPack(+1));
+
+async function adjustPack(sign) {
+  if (!current) return;
+  const ps = Number(pick(current, COL.pack) || 0);
+  if (!(ps > 0)) return;
+
+  const actor = await needActor();
+  if (!actor) return;
+
+  const cur = Number(pick(current, COL.current) || 0);
+  const next = Math.max(0, cur + sign * ps);
+
+  await updateItemWithFallback(current, { current: next }, actor, `pack ${sign > 0 ? "+1" : "-1"} (${ps})`);
+}
+
+// Save meta
+btnSaveMeta.addEventListener("click", async () => {
+  if (!current) return;
+
+  const name = (f_name.value || "").trim();
+  const catV = (f_cat.value || "").trim();
+  const locV = (f_loc.value || "").trim();
+  const targetV = Number(f_target.value);
+  const currentV = Number(f_current.value);
+  const packV = f_pack.value === "" ? null : Number(f_pack.value);
+
+  if (!name) return alert("Name ist Pflicht.");
+  if (!catV) return alert("Kategorie ist Pflicht.");
+  if (!locV) return alert("Standort ist Pflicht.");
+  if (!Number.isFinite(targetV) || targetV < 0) return alert("Soll ungültig.");
+  if (!Number.isFinite(currentV) || currentV < 0) return alert("Ist ungültig.");
+
+  const actor = await needActor();
+  if (!actor) return;
+
+  await updateItemWithFallback(current, { name, category: catV, location: locV, target: targetV, current: currentV, pack: packV }, actor, "save meta");
+});
+
+// Delete (soft)
+btnDelete.addEventListener("click", async () => {
+  if (!current) return;
+  if (!confirm("Artikel soft löschen? (Falls deleted_at existiert, wird er ausgeblendet.)")) return;
+
+  const actor = await needActor();
+  if (!actor) return;
+
+  await softDeleteWithFallback(current, actor);
+});
+
+// Image upload
+btnCamera.addEventListener("click", () => fileCam.click());
+btnPicker.addEventListener("click", () => filePick.click());
+fileCam.addEventListener("change", async e => { const f = e.target.files?.[0]; e.target.value=""; if (f) await uploadImage(f); });
+filePick.addEventListener("change", async e => { const f = e.target.files?.[0]; e.target.value=""; if (f) await uploadImage(f); });
+
+async function uploadImage(file) {
+  if (!current) return;
+
+  imgHint.textContent = "";
+  if (!file.type.startsWith("image/")) return alert("Bitte ein Bild auswählen.");
+  if (file.size > 8 * 1024 * 1024) return alert("Bild zu groß (max 8MB).");
+
+  const actor = await needActor();
+  if (!actor) return;
+
+  const id = String(pick(current, COL.id));
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `items/${id}/${Date.now()}.${ext}`;
+
+  imgHint.textContent = "Upload läuft …";
+
+  const up = await supabase.storage.from(BUCKET).upload(path, file, {
+    upsert: true,
+    contentType: file.type
+  });
+
+  if (up.error) {
+    imgHint.textContent = "Upload Fehler: " + up.error.message;
+    setStatus("Upload Fehler", up.error);
+    return;
+  }
+
+  await updateItemWithFallback(current, { image: path }, actor, "upload image");
+  imgHint.textContent = "Bild gespeichert.";
+}
+
+// Core DB operations with fallback
+async function insertWithFallback(basePayload) {
+  // Wir versuchen mehrere Spaltenvarianten, bis Supabase nicht mehr meckert
+  const variants = buildInsertVariants(basePayload);
+
+  let lastErr = null;
+  for (const payload of variants) {
+    const r = await supabase.from(TABLE).insert(payload).select("*").single();
+    if (!r.error) return r.data;
+    lastErr = r.error;
+    // Wenn PK duplicate oder RLS: weitergeben, nicht endlos probieren
+    if (String(r.error.message || "").toLowerCase().includes("duplicate")) break;
+    if (String(r.error.message || "").toLowerCase().includes("row level security")) break;
+  }
+
+  throw lastErr || new Error("Insert failed");
+}
+
+async function updateWithFallback(id, patchObj) {
+  const variants = buildUpdateVariants(patchObj);
+
+  let lastErr = null;
+  for (const patch of variants) {
+    const r = await supabase.from(TABLE).update(patch).eq("id", id).select("*").single();
+    if (!r.error) return r.data;
+    lastErr = r.error;
+
+    // Wenn id column nicht "id" ist, versuchen wir alternative PK match (item_id)
+    if (String(r.error.message || "").toLowerCase().includes("column") && String(r.error.message).includes("id")) {
+      // Try item_id
+      const r2 = await supabase.from(TABLE).update(patch).eq("item_id", id).select("*").single();
+      if (!r2.error) return r2.data;
+      lastErr = r2.error;
+    }
+    if (String(r.error.message || "").toLowerCase().includes("row level security")) break;
+  }
+
+  throw lastErr || new Error("Update failed");
+}
+
+async function updateItemWithFallback(row, newValues, actor, note) {
+  try {
+    setStatus("Speichere …");
+
+    const id = String(pick(row, COL.id));
+    const patchObj = {};
+
+    if (newValues.name !== undefined) patchObj.name = newValues.name;
+    if (newValues.category !== undefined) patchObj.category = newValues.category;
+    if (newValues.location !== undefined) patchObj.location = newValues.location;
+    if (newValues.target !== undefined) patchObj.target = newValues.target;
+    if (newValues.current !== undefined) patchObj.current = newValues.current;
+    if (newValues.pack !== undefined) patchObj.pack = newValues.pack;
+    if (newValues.image !== undefined) patchObj.image = newValues.image;
+
+    // optional actor/time columns if they exist (best effort)
+    patchObj.last_actor = actor;
+    patchObj.last_change_at = new Date().toISOString();
+    patchObj.updated_at = new Date().toISOString();
+
+    const updated = await updateWithFallback(id, patchObj);
+
+    // Update local row
+    const idx = allRows.findIndex(r => String(pick(r, COL.id)) === id);
+    if (idx >= 0) allRows[idx] = updated;
+
+    current = updated;
+    toastMsg("Gespeichert");
+    setStatus("OK");
+
+    rebuildFilters();
     renderList();
-    return;
+    renderDetail();
+  } catch (e) {
+    const msg = e?.message || JSON.stringify(e);
+    alert("Fehler beim Speichern: " + msg);
+    setStatus("Speichern fehlgeschlagen", e);
   }
-
-  allItems = data || [];
-  setHint(listHint, allItems.length ? "" : "Noch keine Artikel vorhanden.");
-  rebuildFiltersAndDatalists();
-  renderList();
 }
 
-function rebuildFiltersAndDatalists() {
+async function softDeleteWithFallback(row, actor) {
+  const id = String(pick(row, COL.id));
+  try {
+    setStatus("Lösche …");
+    const patch = {
+      deleted_at: new Date().toISOString(),
+      last_actor: actor,
+      last_change_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Wenn deleted_at nicht existiert, versuchen wir "is_deleted" oder "deleted" nicht, sondern lassen es hart scheitern
+    // und zeigen dann klar, dass deine Tabelle kein deleted_at hat.
+    const updated = await updateWithFallback(id, patch);
+
+    allRows = allRows.filter(r => String(pick(r, COL.id)) !== id);
+    toastMsg("Gelöscht");
+    setStatus("OK");
+    location.hash = "#/";
+    rebuildFilters();
+    renderList();
+  } catch (e) {
+    alert("Löschen fehlgeschlagen: " + (e?.message || e));
+    setStatus("Löschen fehlgeschlagen", e);
+  }
+}
+
+// Build payload variants for insert/update (different column names)
+function buildInsertVariants(base) {
+  const v = [];
+
+  // Canonical
+  v.push({
+    id: base.id,
+    name: base.name,
+    category: base.category,
+    location: base.location,
+    target_qty: base.target,
+    current_qty: base.current,
+    pack_size: base.pack ?? null,
+    deleted_at: null
+  });
+
+  // German style
+  v.push({
+    id: base.id,
+    name: base.name,
+    kategorie: base.category,
+    standort: base.location,
+    soll: base.target,
+    ist: base.current,
+    pack_size: base.pack ?? null,
+    deleted_at: null
+  });
+
+  // Mixed / alternative
+  v.push({
+    id: base.id,
+    titel: base.name,
+    category: base.category,
+    standort: base.location,
+    target: base.target,
+    current: base.current,
+    pack: base.pack ?? null,
+    deleted_at: null
+  });
+
+  return v;
+}
+
+function buildUpdateVariants(patchObj) {
+  const variants = [];
+
+  // Variant 1 (canonical)
+  const p1 = {};
+  for (const [k, v] of Object.entries(patchObj)) {
+    if (k === "name") p1.name = v;
+    else if (k === "category") p1.category = v;
+    else if (k === "location") p1.location = v;
+    else if (k === "target") p1.target_qty = v;
+    else if (k === "current") p1.current_qty = v;
+    else if (k === "pack") p1.pack_size = v;
+    else if (k === "image") p1.image_path = v;
+    else p1[k] = v; // last_actor etc best-effort
+  }
+  variants.push(p1);
+
+  // Variant 2 (german)
+  const p2 = {};
+  for (const [k, v] of Object.entries(patchObj)) {
+    if (k === "name") p2.name = v;
+    else if (k === "category") p2.kategorie = v;
+    else if (k === "location") p2.standort = v;
+    else if (k === "target") p2.soll = v;
+    else if (k === "current") p2.ist = v;
+    else if (k === "pack") p2.pack_size = v;
+    else if (k === "image") p2.image_url = v;
+    else p2[k] = v;
+  }
+  variants.push(p2);
+
+  // Variant 3 (alt keys)
+  const p3 = {};
+  for (const [k, v] of Object.entries(patchObj)) {
+    if (k === "name") p3.title = v;
+    else if (k === "category") p3.cat = v;
+    else if (k === "location") p3.lagerort = v;
+    else if (k === "target") p3.target = v;
+    else if (k === "current") p3.current = v;
+    else if (k === "pack") p3.pack = v;
+    else if (k === "image") p3.imageUrl = v;
+    else p3[k] = v;
+  }
+  variants.push(p3);
+
+  return variants;
+}
+
+// Rendering
+function rebuildFilters() {
   const cats = new Set();
   const locs = new Set();
 
-  for (const it of allItems) {
-    if (it.category) cats.add(it.category);
-    if (it.location) locs.add(it.location);
+  for (const r of allRows) {
+    const cv = pick(r, COL.category);
+    const lv = pick(r, COL.location);
+    if (cv) cats.add(String(cv));
+    if (lv) locs.add(String(lv));
   }
 
-  // Filter selects
-  const catVal = categoryFilter.value;
-  const locVal = locationFilter.value;
+  const oldC = cat.value;
+  const oldL = loc.value;
 
-  categoryFilter.innerHTML = `<option value="">Alle Kategorien</option>` + [...cats].sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-  locationFilter.innerHTML = `<option value="">Alle Standorte</option>` + [...locs].sort().map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("");
+  cat.innerHTML = `<option value="">Alle Kategorien</option>` + [...cats].sort().map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+  loc.innerHTML = `<option value="">Alle Standorte</option>` + [...locs].sort().map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
 
-  categoryFilter.value = cats.has(catVal) ? catVal : "";
-  locationFilter.value = locs.has(locVal) ? locVal : "";
+  cat.value = cats.has(oldC) ? oldC : "";
+  loc.value = locs.has(oldL) ? oldL : "";
 
-  // Datalists
-  categoryList.innerHTML = [...cats].sort().map(c => `<option value="${escapeHtml(c)}"></option>`).join("");
-  locationList.innerHTML = [...locs].sort().map(l => `<option value="${escapeHtml(l)}"></option>`).join("");
-}
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-/** List render */
-function computeState(it) {
-  const cur = Number(it.current_qty ?? it.ist ?? 0);
-  const target = Number(it.target_qty ?? it.soll ?? 0);
-  const min = Number(it.min_qty ?? 0);
-
-  if (min > 0 && cur < min) return { cls: "bad", text: "MIN" };
-  if (cur < target) return { cls: "warn", text: "ZU WENIG" };
-  return { cls: "ok", text: "OK" };
+  catList.innerHTML = [...cats].sort().map(x => `<option value="${esc(x)}"></option>`).join("");
+  locList.innerHTML = [...locs].sort().map(x => `<option value="${esc(x)}"></option>`).join("");
 }
 
 function renderList() {
-  const q = (searchInput.value || "").trim().toLowerCase();
-  const cat = categoryFilter.value;
-  const loc = locationFilter.value;
+  const query = (q.value || "").trim().toLowerCase();
+  const catV = cat.value;
+  const locV = loc.value;
 
-  let items = [...allItems];
+  let rows = [...allRows];
 
-  if (q) {
-    items = items.filter(it => {
-      const hay = `${it.id} ${it.name||""} ${it.category||""} ${it.location||""}`.toLowerCase();
-      return hay.includes(q);
+  // hide deleted if we can detect deleted_at
+  rows = rows.filter(r => {
+    const d = pick(r, COL.deletedAt);
+    return !d;
+  });
+
+  if (query) {
+    rows = rows.filter(r => {
+      const s = `${pick(r, COL.id)} ${pick(r, COL.name)} ${pick(r, COL.category)} ${pick(r, COL.location)}`.toLowerCase();
+      return s.includes(query);
     });
   }
-  if (cat) items = items.filter(it => (it.category || "") === cat);
-  if (loc) items = items.filter(it => (it.location || "") === loc);
+  if (catV) rows = rows.filter(r => String(pick(r, COL.category) || "") === catV);
+  if (locV) rows = rows.filter(r => String(pick(r, COL.location) || "") === locV);
 
-  itemsGrid.innerHTML = "";
+  grid.innerHTML = "";
 
-  if (!items.length) {
-    setHint(listHint, "Keine Treffer.");
+  if (!rows.length) {
+    listHint.textContent = "Keine Treffer oder keine Daten.";
     return;
-  } else {
-    setHint(listHint, "");
   }
+  listHint.textContent = "";
 
-  for (const it of items) {
-    const cur = Number(it.current_qty ?? 0);
-    const target = Number(it.target_qty ?? 0);
-    const st = computeState(it);
+  for (const r of rows) {
+    const id = String(pick(r, COL.id) ?? "");
+    const name = String(pick(r, COL.name) ?? id);
+    const catName = String(pick(r, COL.category) ?? "Ohne Kategorie");
+    const locName = String(pick(r, COL.location) ?? "Ohne Standort");
+    const cur = Number(pick(r, COL.current) ?? 0);
+    const target = Number(pick(r, COL.target) ?? 0);
+    const imgPath = pick(r, COL.image);
+
+    const st = computeState(cur, target);
 
     const card = document.createElement("div");
     card.className = "card itemCard";
-    card.addEventListener("click", () => openItem(it.id));
+    card.addEventListener("click", () => {
+      location.hash = `#/item/${encodeURIComponent(id)}`;
+    });
 
     const thumb = document.createElement("div");
     thumb.className = "thumb";
-    if (it.image_path) {
-      const img = document.createElement("img");
-      img.src = getPublicUrl(it.image_path);
-      img.alt = "";
-      thumb.appendChild(img);
+    if (imgPath) {
+      const im = document.createElement("img");
+      im.src = getPublicUrl(String(imgPath));
+      thumb.appendChild(im);
     } else {
-      const span = document.createElement("span");
-      span.textContent = "Kein Bild";
-      thumb.appendChild(span);
+      const sp = document.createElement("span");
+      sp.textContent = "Kein Bild";
+      thumb.appendChild(sp);
     }
 
     const info = document.createElement("div");
     info.className = "itemInfo";
     info.innerHTML = `
-      <div class="itemName">${escapeHtml(it.name || it.id)}</div>
-      <div class="itemSub">${escapeHtml(it.category || "Ohne Kategorie")} • ${escapeHtml(it.location || "Ohne Standort")}</div>
+      <div class="itemName">${esc(name)}</div>
+      <div class="itemSub">${esc(catName)} • ${esc(locName)}</div>
       <div class="itemMeta">Bestand: <b>${cur}</b> / ${target}</div>
-      <div class="itemMeta">Zuletzt: ${escapeHtml(it.last_actor || "—")}, ${escapeHtml(formatTs(it.last_change_at || it.updated_at))}</div>
     `;
 
     const pill = document.createElement("div");
@@ -354,551 +649,148 @@ function renderList() {
     card.appendChild(thumb);
     card.appendChild(info);
     card.appendChild(pill);
-
-    itemsGrid.appendChild(card);
+    grid.appendChild(card);
   }
 }
 
-/** Detail render */
 function renderDetail() {
-  if (!currentItem) return;
+  if (!current) return;
 
-  detailTitle.textContent = currentItem.name || currentItem.id;
-  detailMeta.textContent =
-    `Kategorie: ${currentItem.category || "—"} | Standort: ${currentItem.location || "—"} | Zuletzt: ${currentItem.last_actor || "—"}, ${formatTs(currentItem.last_change_at || currentItem.updated_at)}`;
+  const id = String(pick(current, COL.id) ?? "");
+  const name = String(pick(current, COL.name) ?? id);
+  const catName = String(pick(current, COL.category) ?? "");
+  const locName = String(pick(current, COL.location) ?? "");
+  const target = Number(pick(current, COL.target) ?? 0);
+  const cur = Number(pick(current, COL.current) ?? 0);
+  const pack = pick(current, COL.pack);
+  const imgPath = pick(current, COL.image);
 
-  d_id.value = currentItem.id;
-  d_name.value = currentItem.name || "";
-  d_category.value = currentItem.category || "";
-  d_location.value = currentItem.location || "";
-  d_unit.value = currentItem.unit_name || "Stück";
-  d_min.value = Number(currentItem.min_qty ?? 0);
-  d_target.value = Number(currentItem.target_qty ?? 0);
-  d_current.value = Number(currentItem.current_qty ?? 0);
-  d_pack_name.value = currentItem.pack_name || "";
-  d_pack_size.value = currentItem.pack_size ?? "";
+  dTitle.textContent = name;
+  dMeta.textContent = `Kategorie: ${catName || "—"} | Standort: ${locName || "—"}`;
 
-  // Image
-  if (currentItem.image_path) {
-    detailNoImage.classList.add("hidden");
-    detailImage.classList.remove("hidden");
-    detailImage.src = getPublicUrl(currentItem.image_path);
-  } else {
-    detailImage.classList.add("hidden");
-    detailNoImage.classList.remove("hidden");
-  }
+  f_id.value = id;
+  f_name.value = name;
+  f_cat.value = catName;
+  f_loc.value = locName;
+  f_target.value = String(target);
+  f_current.value = String(cur);
+  f_pack.value = pack ?? "";
 
-  // stock state
-  updateStockUI();
+  stock.textContent = String(cur);
+  const st = computeState(cur, target);
+  state.className = `pill ${st.cls}`;
+  state.textContent = st.text;
 
-  // pack hint
-  const ps = Number(currentItem.pack_size || 0);
+  const ps = Number(pack || 0);
   if (ps > 0) {
-    packHint.textContent = `Pack: ${ps} ${currentItem.unit_name || "Stück"} pro ${currentItem.pack_name || "Packung"}.`;
-    btnDeltaPackMinus.disabled = false;
-    btnDeltaPackPlus.disabled = false;
+    packHint.textContent = `Packungsgröße: ${ps} Stück.`;
+    btnPackMinus.disabled = false;
+    btnPackPlus.disabled = false;
   } else {
-    packHint.textContent = `Tipp: Packung Größe setzen (z.B. 16) für +1 Pack / -1 Pack.`;
-    btnDeltaPackMinus.disabled = true;
-    btnDeltaPackPlus.disabled = true;
+    packHint.textContent = "Tipp: Packungsgröße setzen (z.B. 16), dann funktionieren +1 Pack / -1 Pack.";
+    btnPackMinus.disabled = true;
+    btnPackPlus.disabled = true;
   }
 
-  // qr link
-  const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, "/");
-  qrLink.textContent = `${window.location.origin}${window.location.pathname}#/item/${currentItem.id}`;
+  qr.textContent = `${location.origin}${location.pathname}#/item/${encodeURIComponent(id)}`;
 
-  loadLogs(currentItem.id);
-}
-
-function updateStockUI() {
-  const cur = Number(currentItem.current_qty ?? 0);
-  const target = Number(currentItem.target_qty ?? 0);
-  stockValue.textContent = String(cur);
-
-  const st = computeState(currentItem);
-  stockState.className = `pill ${st.cls}`;
-  stockState.textContent = st.text;
-}
-
-/** Logs */
-async function loadLogs(itemId) {
-  logList.innerHTML = "Lade …";
-  const { data, error } = await supabase
-    .from(TABLE_LOGS)
-    .select("*")
-    .eq("item_id", itemId)
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  if (error) {
-    console.error(error);
-    logList.innerHTML = `<div class="smallHint">Logs konnten nicht geladen werden: ${escapeHtml(error.message)}</div>`;
-    return;
+  if (imgPath) {
+    noimg.classList.add("hidden");
+    img.classList.remove("hidden");
+    img.src = getPublicUrl(String(imgPath));
+  } else {
+    img.classList.add("hidden");
+    noimg.classList.remove("hidden");
   }
 
-  const logs = data || [];
-  if (!logs.length) {
-    logList.innerHTML = `<div class="smallHint">Noch keine Änderungen.</div>`;
-    return;
-  }
-
-  logList.innerHTML = "";
-  for (const l of logs) {
-    const div = document.createElement("div");
-    div.className = "logItem";
-    div.innerHTML = `
-      <div class="logTop">
-        <div class="logMain">${escapeHtml(l.action || "action")}${l.delta != null ? ` (${l.delta > 0 ? "+" : ""}${l.delta})` : ""}</div>
-        <div class="pill ${l.delta != null && l.delta < 0 ? "warn" : "ok"}">${escapeHtml(l.actor || "—")}</div>
-      </div>
-      <div class="logSub">${escapeHtml(l.note || "")} • ${escapeHtml(formatTs(l.created_at))}</div>
-    `;
-    logList.appendChild(div);
-  }
+  imgHint.textContent = "";
 }
 
-/** CRUD: Create */
-function openCreateModal() {
-  createHint.textContent = "";
-  c_id.value = "";
-  c_name.value = "";
-  c_category.value = "";
-  c_location.value = "";
-  c_target.value = "0";
-  c_current.value = "0";
-  c_min.value = "0";
-  c_unit.value = "Stück";
-  c_pack_name.value = "";
-  c_pack_size.value = "";
-  createModal.classList.remove("hidden");
-  setTimeout(() => c_id.focus(), 0);
-}
-
-function closeCreateModal() {
-  createModal.classList.add("hidden");
-}
-
-btnOpenCreate.addEventListener("click", openCreateModal);
-btnCreateCancel.addEventListener("click", closeCreateModal);
-
+// Create
 btnCreate.addEventListener("click", async () => {
-  createHint.textContent = "Prüfe …";
+  try {
+    createHint.textContent = "Prüfe Eingaben …";
 
-  const ok = await ensurePin();
-  if (!ok) { createHint.textContent = "PIN abgebrochen."; return; }
+    const actor = await needActor();
+    if (!actor) { createHint.textContent = "Abgebrochen."; return; }
 
-  const actor = await requireActor();
-  if (!actor) { createHint.textContent = "Abgebrochen."; return; }
+    const id = normalizeId(c_id.value);
+    const name = (c_name.value || "").trim();
+    const catV = (c_cat.value || "").trim();
+    const locV = (c_loc.value || "").trim();
+    const target = Number(c_target.value);
+    const cur = Number(c_current.value);
+    const pack = c_pack.value === "" ? null : Number(c_pack.value);
 
-  const idRaw = c_id.value;
-  const id = normalizeId(idRaw);
-  if (!id || !isValidId(id)) { createHint.textContent = "Ungültige ID (a-z, 0-9, _ und -)."; return; }
+    if (!id) { createHint.textContent = "ID fehlt/ungültig."; return; }
+    if (!name) { createHint.textContent = "Name ist Pflicht."; return; }
+    if (!catV) { createHint.textContent = "Kategorie ist Pflicht."; return; }
+    if (!locV) { createHint.textContent = "Standort ist Pflicht."; return; }
+    if (!Number.isFinite(target) || target < 0) { createHint.textContent = "Soll ungültig."; return; }
+    if (!Number.isFinite(cur) || cur < 0) { createHint.textContent = "Ist ungültig."; return; }
+    if (pack !== null && (!Number.isFinite(pack) || pack < 0)) { createHint.textContent = "Packungsgröße ungültig."; return; }
 
-  const name = (c_name.value || "").trim();
-  const category = (c_category.value || "").trim();
-  const location = (c_location.value || "").trim();
+    createHint.textContent = "Lege an …";
+    setStatus("Insert …");
 
-  const target = Number(c_target.value);
-  const current = Number(c_current.value);
-  const min = Number(c_min.value);
-
-  if (!name) { createHint.textContent = "Name ist Pflicht."; return; }
-  if (!category) { createHint.textContent = "Kategorie ist Pflicht."; return; }
-  if (!location) { createHint.textContent = "Standort ist Pflicht."; return; }
-  if (!Number.isFinite(target) || target < 0) { createHint.textContent = "Soll ist ungültig."; return; }
-  if (!Number.isFinite(current) || current < 0) { createHint.textContent = "Ist ist ungültig."; return; }
-
-  const unit = (c_unit.value || "Stück").trim() || "Stück";
-  const packName = (c_pack_name.value || "").trim();
-  const packSize = c_pack_size.value === "" ? null : Number(c_pack_size.value);
-
-  createHint.textContent = "Lege an …";
-
-  const payload = {
-    id,
-    name,
-    category,
-    location,
-    unit_name: unit,
-    min_qty: Number.isFinite(min) && min >= 0 ? min : 0,
-    target_qty: target,
-    current_qty: current,
-    pack_name: packName || null,
-    pack_size: Number.isFinite(packSize) && packSize > 0 ? packSize : null,
-    last_actor: actor,
-    last_change_at: nowIso(),
-    updated_at: nowIso(),
-    deleted_at: null
-  };
-
-  const { data, error } = await supabase.from(TABLE_ITEMS).insert(payload).select("*").single();
-
-  if (error) {
-    console.error(error);
-    createHint.textContent = "Fehler: " + error.message;
-    return;
-  }
-
-  await supabase.from(TABLE_LOGS).insert({
-    item_id: id,
-    actor,
-    action: "create",
-    delta: null,
-    note: "Artikel angelegt"
-  });
-
-  toastMsg("Artikel angelegt");
-  closeCreateModal();
-  await loadItems();
-  openItem(id);
-});
-
-/** CRUD: Save Meta */
-btnSaveMeta.addEventListener("click", async () => {
-  if (!currentItem) return;
-
-  const ok = await ensurePin();
-  if (!ok) return;
-
-  const name = (d_name.value || "").trim();
-  const category = (d_category.value || "").trim();
-  const location = (d_location.value || "").trim();
-
-  const target = Number(d_target.value);
-  const current = Number(d_current.value);
-  const min = Number(d_min.value);
-
-  if (!name) { alert("Name ist Pflicht."); return; }
-  if (!category) { alert("Kategorie ist Pflicht."); return; }
-  if (!location) { alert("Standort ist Pflicht."); return; }
-  if (!Number.isFinite(target) || target < 0) { alert("Soll ist ungültig."); return; }
-  if (!Number.isFinite(current) || current < 0) { alert("Ist ist ungültig."); return; }
-
-  const unit = (d_unit.value || "Stück").trim() || "Stück";
-  const packName = (d_pack_name.value || "").trim();
-  const packSize = d_pack_size.value === "" ? null : Number(d_pack_size.value);
-
-  const actor = await requireActor();
-  if (!actor) return;
-
-  const patch = {
-    name,
-    category,
-    location,
-    unit_name: unit,
-    min_qty: Number.isFinite(min) && min >= 0 ? min : 0,
-    target_qty: target,
-    current_qty: current,
-    pack_name: packName || null,
-    pack_size: Number.isFinite(packSize) && packSize > 0 ? packSize : null,
-    last_actor: actor,
-    last_change_at: nowIso(),
-    updated_at: nowIso()
-  };
-
-  const { data, error } = await supabase
-    .from(TABLE_ITEMS)
-    .update(patch)
-    .eq("id", currentItem.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error(error);
-    alert("Fehler beim Speichern: " + error.message);
-    return;
-  }
-
-  await supabase.from(TABLE_LOGS).insert({
-    item_id: currentItem.id,
-    actor,
-    action: "update_meta",
-    delta: null,
-    note: "Stammdaten gespeichert"
-  });
-
-  currentItem = data;
-  toastMsg("Gespeichert");
-  await loadItems();
-  renderDetail();
-});
-
-/** Stock delta buttons */
-document.querySelectorAll("[data-delta]").forEach(btn => {
-  btn.addEventListener("click", async () => {
-    if (!currentItem) return;
-
-    const ok = await ensurePin();
-    if (!ok) return;
-
-    const actor = await requireActor();
-    if (!actor) return;
-
-    const delta = Number(btn.getAttribute("data-delta"));
-    const newQty = Math.max(0, Number(currentItem.current_qty ?? 0) + delta);
-
-    const { data, error } = await supabase
-      .from(TABLE_ITEMS)
-      .update({
-        current_qty: newQty,
-        last_actor: actor,
-        last_change_at: nowIso(),
-        updated_at: nowIso()
-      })
-      .eq("id", currentItem.id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error(error);
-      alert("Fehler: " + error.message);
-      return;
-    }
-
-    await supabase.from(TABLE_LOGS).insert({
-      item_id: currentItem.id,
-      actor,
-      action: "adjust_qty",
-      delta,
-      note: `Bestand geändert (${delta > 0 ? "+" : ""}${delta})`
+    const newRow = await insertWithFallback({
+      id, name, category: catV, location: locV, target, current: cur, pack
     });
 
-    currentItem = data;
-    updateStockUI();
-    await loadItems();
-    loadLogs(currentItem.id);
-  });
+    createModal.classList.add("hidden");
+    toastMsg("Artikel angelegt");
+    setStatus("OK");
+
+    await load();
+    location.hash = `#/item/${encodeURIComponent(String(pick(newRow, COL.id) || id))}`;
+  } catch (e) {
+    createHint.textContent = "Fehler: " + (e?.message || e);
+    setStatus("Insert fehlgeschlagen", e);
+  }
 });
 
-/** Pack +/- */
-btnDeltaPackMinus.addEventListener("click", async () => adjustByPack(-1));
-btnDeltaPackPlus.addEventListener("click", async () => adjustByPack(+1));
+// Load
+async function load() {
+  setStatus("Lade Daten …");
+  listHint.textContent = "Lade …";
+  grid.innerHTML = "";
 
-async function adjustByPack(sign) {
-  if (!currentItem) return;
-  const ps = Number(currentItem.pack_size || 0);
-  if (!(ps > 0)) return;
-
-  const ok = await ensurePin();
-  if (!ok) return;
-
-  const actor = await requireActor();
-  if (!actor) return;
-
-  const delta = sign * ps;
-  const newQty = Math.max(0, Number(currentItem.current_qty ?? 0) + delta);
-
-  const { data, error } = await supabase
-    .from(TABLE_ITEMS)
-    .update({
-      current_qty: newQty,
-      last_actor: actor,
-      last_change_at: nowIso(),
-      updated_at: nowIso()
-    })
-    .eq("id", currentItem.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error(error);
-    alert("Fehler: " + error.message);
+  const res = await supabase.from(TABLE).select("*").limit(1000);
+  if (res.error) {
+    setStatus("DB Fehler beim Laden", res.error);
+    listHint.textContent = "Fehler: " + res.error.message;
+    allRows = [];
     return;
   }
 
-  await supabase.from(TABLE_LOGS).insert({
-    item_id: currentItem.id,
-    actor,
-    action: "adjust_pack",
-    delta,
-    note: `${sign > 0 ? "+1" : "-1"} Pack (${ps} ${currentItem.unit_name || "Stück"})`
-  });
+  allRows = res.data || [];
+  setStatus(`OK (${allRows.length} Datensätze geladen)`);
 
-  currentItem = data;
-  updateStockUI();
-  await loadItems();
-  loadLogs(currentItem.id);
+  rebuildFilters();
+  renderList();
+  route();
 }
 
-/** Delete (soft delete) */
-btnDelete.addEventListener("click", async () => {
-  if (!currentItem) return;
-
-  const ok = await ensurePin();
-  if (!ok) return;
-
-  if (!confirm("Artikel wirklich löschen? (Er verschwindet aus der Übersicht, Logs bleiben.)")) return;
-
-  const actor = await requireActor();
-  if (!actor) return;
-
-  const { error } = await supabase
-    .from(TABLE_ITEMS)
-    .update({
-      deleted_at: nowIso(),
-      last_actor: actor,
-      last_change_at: nowIso(),
-      updated_at: nowIso()
-    })
-    .eq("id", currentItem.id);
-
-  if (error) {
-    console.error(error);
-    alert("Fehler: " + error.message);
+// Init
+async function init() {
+  if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes("PASTE_")) {
+    setStatus("Fehlt: SUPABASE_ANON_KEY in app.js eintragen.");
+    alert("Bitte in app.js den SUPABASE_ANON_KEY eintragen.");
     return;
   }
 
-  await supabase.from(TABLE_LOGS).insert({
-    item_id: currentItem.id,
-    actor,
-    action: "delete_soft",
-    delta: null,
-    note: "Artikel soft gelöscht"
-  });
-
-  toastMsg("Gelöscht");
-  window.location.hash = "#/";
-  await loadItems();
-});
-
-/** Image upload */
-btnTakePhoto.addEventListener("click", () => fileCamera.click());
-btnPickPhoto.addEventListener("click", () => filePicker.click());
-
-fileCamera.addEventListener("change", async (e) => {
-  const f = e.target.files?.[0];
-  e.target.value = "";
-  if (f) await uploadImageForCurrentItem(f);
-});
-filePicker.addEventListener("change", async (e) => {
-  const f = e.target.files?.[0];
-  e.target.value = "";
-  if (f) await uploadImageForCurrentItem(f);
-});
-
-async function uploadImageForCurrentItem(file) {
-  if (!currentItem) return;
-
-  imageHint.textContent = "";
-
-  const ok = await ensurePin();
-  if (!ok) return;
-
-  const actor = await requireActor();
-  if (!actor) return;
-
-  // Basic validation
-  if (!file.type.startsWith("image/")) {
-    alert("Bitte eine Bilddatei auswählen.");
-    return;
-  }
-  if (file.size > 8 * 1024 * 1024) {
-    alert("Bild ist zu groß (max 8 MB).");
-    return;
-  }
-
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `items/${currentItem.id}/${Date.now()}.${ext}`;
-
-  imageHint.textContent = "Upload läuft …";
-
-  const up = await supabase.storage
-    .from(BUCKET_IMAGES)
-    .upload(path, file, { upsert: true, contentType: file.type });
-
-  if (up.error) {
-    console.error("UPLOAD ERROR", up.error);
-    imageHint.textContent = "Upload Fehler: " + up.error.message;
-    alert("Upload Fehler: " + up.error.message);
-    return;
-  }
-
-  // Save path to DB
-  const { data, error } = await supabase
-    .from(TABLE_ITEMS)
-    .update({
-      image_path: path,
-      last_actor: actor,
-      last_change_at: nowIso(),
-      updated_at: nowIso()
-    })
-    .eq("id", currentItem.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error("DB image_path error", error);
-    imageHint.textContent = "DB Fehler: " + error.message;
-    alert("DB Fehler: " + error.message);
-    return;
-  }
-
-  await supabase.from(TABLE_LOGS).insert({
-    item_id: currentItem.id,
-    actor,
-    action: "upload_image",
-    delta: null,
-    note: "Bild hochgeladen"
-  });
-
-  currentItem = data;
-
-  // Render
-  detailNoImage.classList.add("hidden");
-  detailImage.classList.remove("hidden");
-  detailImage.src = getPublicUrl(path);
-
-  imageHint.textContent = "Bild gespeichert.";
-  toastMsg("Bild gespeichert");
-  await loadItems();
-  loadLogs(currentItem.id);
-}
-
-/** Filters */
-searchInput.addEventListener("input", renderList);
-categoryFilter.addEventListener("change", renderList);
-locationFilter.addEventListener("change", renderList);
-
-/** Navigation buttons */
-btnHome.addEventListener("click", () => window.location.hash = "#/");
-btnBack.addEventListener("click", () => window.location.hash = "#/");
-
-/** Hash routing */
-window.addEventListener("hashchange", handleRoute);
-
-function handleRoute() {
-  const h = window.location.hash || "#/";
-  const m = h.match(/^#\/item\/(.+)$/);
-  if (m) {
-    const id = decodeURIComponent(m[1]);
-    const item = allItems.find(x => x.id === id);
-    if (item) showDetail(item);
-    else {
-      // If list not loaded yet, load and then route
-      loadItems().then(() => {
-        const again = allItems.find(x => x.id === id);
-        if (again) showDetail(again);
-        else {
-          toastMsg("Artikel nicht gefunden.");
-          window.location.hash = "#/";
-        }
-      });
+  // Quick Storage sanity check (best effort)
+  const b = await supabase.storage.listBuckets();
+  if (b.error) {
+    setStatus("Storage Bucket Check fehlgeschlagen (nicht kritisch)", b.error);
+  } else {
+    const has = (b.data || []).some(x => x.name === BUCKET);
+    if (!has) {
+      setStatus(`Bucket "${BUCKET}" nicht gefunden. Bilderupload wird scheitern.`, b.data);
     }
-    return;
   }
-  showList();
+
+  await load();
 }
 
-/** Init */
-(async function init() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes("PASTE_")) {
-    alert("Bitte SUPABASE_URL und SUPABASE_ANON_KEY in app.js eintragen.");
-    return;
-  }
-
-  await loadItems();
-  handleRoute();
-})();
-
-
-
+init();
