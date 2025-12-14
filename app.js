@@ -590,3 +590,6 @@ window.addEventListener("unhandledrejection", (e) => {
   toast("Promise-Fehler: " + (e.reason?.message || e.reason || "unbekannt"));
 });
 
+const newItemForm = document.getElementById("newItemForm");
+const cancelNewBtn = document.getElementById("cancelNewBtn");
+
