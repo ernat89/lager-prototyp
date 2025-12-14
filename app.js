@@ -1,499 +1,518 @@
-// 1) HIER EINTRAGEN:
+/**********************************************************
+ * Lager Prototype - app.js (komplett)
+ * - Supabase Storage + DB
+ * - Actor wird NIE vorausgefüllt
+ * - Wenn Actor fehlt: Popup
+ **********************************************************/
+
+/** 1) HIER EINTRAGEN */
 const SUPABASE_URL = "https://fiwatlffqgevxvmrsmvz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpd2F0bGZmcWdldnh2bXJzbXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2ODY1MDYsImV4cCI6MjA4MTI2MjUwNn0.5jQBokoo25GFMBWgluBLN5Yy_NitrvYas8Pyxsj8AZA";
 const EDIT_PIN = "81243";
 
-// Pin-Session-Key
-const PIN_STORAGE_KEY = "lager_pin_ok_v1";
+/** Optional: simpler Edit-PIN (nur UI-Schutz, kein echter Security Layer) */
+const EDIT_PIN = "81243";
 
-// Supabase Client
+/** Tabellen/Bucket */
+const TABLE_ITEMS = "items";
+const TABLE_LOGS = "logs";
+const BUCKET_IMAGES = "images";
+
+/** Supabase Client */
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// DOM
-const statusLine = document.getElementById("statusLine");
+/** State */
+let allItems = [];
+let currentItem = null;
+let pinOkUntil = 0; // 10min Cache
+let actorResolver = null;
 
-const overviewSection = document.getElementById("overviewSection");
-const detailSection = document.getElementById("detailSection");
-const trashSection = document.getElementById("trashSection");
+/** DOM */
+const viewList = document.getElementById("viewList");
+const viewDetail = document.getElementById("viewDetail");
 
-const navOverview = document.getElementById("navOverview");
-const navTrash = document.getElementById("navTrash");
-const newItemBtn = document.getElementById("newItemBtn");
-const backBtn = document.getElementById("backBtn");
+const itemsGrid = document.getElementById("itemsGrid");
+const listHint = document.getElementById("listHint");
 
 const searchInput = document.getElementById("searchInput");
 const categoryFilter = document.getElementById("categoryFilter");
+const locationFilter = document.getElementById("locationFilter");
 
-const homeMessage = document.getElementById("homeMessage");
-const itemsGrid = document.getElementById("itemsGrid");
-const emptyHint = document.getElementById("emptyHint");
+const btnHome = document.getElementById("btnHome");
+const btnBack = document.getElementById("btnBack");
+const btnOpenCreate = document.getElementById("btnOpenCreate");
 
-const trashMessage = document.getElementById("trashMessage");
-const trashGrid = document.getElementById("trashGrid");
-const trashEmpty = document.getElementById("trashEmpty");
+const createModal = document.getElementById("createModal");
+const btnCreateCancel = document.getElementById("btnCreateCancel");
+const btnCreate = document.getElementById("btnCreate");
+const createHint = document.getElementById("createHint");
 
-const newItemDialog = document.getElementById("newItemDialog");
-const newCancel = document.getElementById("newCancel");
-const newCreate = document.getElementById("newCreate");
-const newHint = document.getElementById("newHint");
+const actorModal = document.getElementById("actorModal");
+const actorInput = document.getElementById("actorInput");
+const actorHint = document.getElementById("actorHint");
+const btnActorCancel = document.getElementById("btnActorCancel");
+const btnActorOk = document.getElementById("btnActorOk");
 
-const newId = document.getElementById("newId");
-const newName = document.getElementById("newName");
-const newCategoryFree = document.getElementById("newCategoryFree");
-const newLocation = document.getElementById("newLocation");
-const newTarget = document.getElementById("newTarget");
-const newCurrent = document.getElementById("newCurrent");
-const newMin = document.getElementById("newMin");
-const newUnitName = document.getElementById("newUnitName");
-const newPackName = document.getElementById("newPackName");
-const newPackSize = document.getElementById("newPackSize");
-const newActor = document.getElementById("newActor");
+const toast = document.getElementById("toast");
 
-const confirmDialog = document.getElementById("confirmDialog");
-const confirmTitle = document.getElementById("confirmTitle");
-const confirmText = document.getElementById("confirmText");
-const confirmNo = document.getElementById("confirmNo");
-const confirmYes = document.getElementById("confirmYes");
+/** Detail DOM */
+const detailTitle = document.getElementById("detailTitle");
+const detailMeta = document.getElementById("detailMeta");
+const btnDelete = document.getElementById("btnDelete");
 
-const detailId = document.getElementById("detailId");
-const detailName = document.getElementById("detailName");
-const detailCategory = document.getElementById("detailCategory");
-const detailLocation = document.getElementById("detailLocation");
-const detailTarget = document.getElementById("detailTarget");
-const detailMin = document.getElementById("detailMin");
-const detailUnit = document.getElementById("detailUnit");
-const detailPackName = document.getElementById("detailPackName");
-const detailPackSize = document.getElementById("detailPackSize");
-
-const detailCurrent = document.getElementById("detailCurrent");
-const detailActor = document.getElementById("detailActor");
-const btnSaveMeta = document.getElementById("btnSaveMeta");
-const btnSoftDelete = document.getElementById("btnSoftDelete");
-
-const btnPackMinus = document.getElementById("btnPackMinus");
-const btnPackPlus = document.getElementById("btnPackPlus");
-
-const detailMetaLine = document.getElementById("detailMetaLine");
-const detailLogs = document.getElementById("detailLogs");
-
-const detailNoImage = document.getElementById("detailNoImage");
 const detailImage = document.getElementById("detailImage");
-const qrLink = document.getElementById("qrLink");
+const detailNoImage = document.getElementById("detailNoImage");
+const imageHint = document.getElementById("imageHint");
 
 const btnTakePhoto = document.getElementById("btnTakePhoto");
-const btnPickFile = document.getElementById("btnPickFile");
-const cameraInput = document.getElementById("cameraInput");
-const fileInput = document.getElementById("fileInput");
+const btnPickPhoto = document.getElementById("btnPickPhoto");
+const fileCamera = document.getElementById("fileCamera");
+const filePicker = document.getElementById("filePicker");
 
-// State
-let currentItem = null;
-let confirmResolve = null;
+const d_id = document.getElementById("d_id");
+const d_name = document.getElementById("d_name");
+const d_category = document.getElementById("d_category");
+const d_location = document.getElementById("d_location");
+const d_unit = document.getElementById("d_unit");
+const d_min = document.getElementById("d_min");
+const d_target = document.getElementById("d_target");
+const d_current = document.getElementById("d_current");
+const d_pack_name = document.getElementById("d_pack_name");
+const d_pack_size = document.getElementById("d_pack_size");
 
-// Utils
-function setStatus(msg) {
-  statusLine.textContent = msg || "Bereit";
+const btnSaveMeta = document.getElementById("btnSaveMeta");
+
+const stockValue = document.getElementById("stockValue");
+const stockState = document.getElementById("stockState");
+const packHint = document.getElementById("packHint");
+
+const logList = document.getElementById("logList");
+const qrLink = document.getElementById("qrLink");
+
+const categoryList = document.getElementById("categoryList");
+const locationList = document.getElementById("locationList");
+
+const btnDeltaPackMinus = document.getElementById("btnDeltaPackMinus");
+const btnDeltaPackPlus = document.getElementById("btnDeltaPackPlus");
+
+/** Create modal inputs */
+const c_id = document.getElementById("c_id");
+const c_name = document.getElementById("c_name");
+const c_category = document.getElementById("c_category");
+const c_location = document.getElementById("c_location");
+const c_target = document.getElementById("c_target");
+const c_current = document.getElementById("c_current");
+const c_min = document.getElementById("c_min");
+const c_unit = document.getElementById("c_unit");
+const c_pack_name = document.getElementById("c_pack_name");
+const c_pack_size = document.getElementById("c_pack_size");
+
+/** Utils */
+function toastMsg(msg, ms = 2200) {
+  toast.textContent = msg;
+  toast.classList.remove("hidden");
+  window.clearTimeout(toast._t);
+  toast._t = window.setTimeout(() => toast.classList.add("hidden"), ms);
 }
-function showMessage(el, msg) {
-  if (!msg) { el.classList.add("hidden"); el.textContent = ""; return; }
-  el.classList.remove("hidden");
-  el.textContent = msg;
-}
+
 function setHint(el, msg) {
   el.textContent = msg || "";
 }
-function normalizeId(v) {
-  const s = (v || "").trim().toLowerCase();
-  if (!s) return "";
-  if (!/^[a-z0-9_-]+$/.test(s)) return "";
-  return s;
+
+function normalizeId(s) {
+  return (s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_-]/g, "");
 }
-function normalizeText(v) {
-  return (v || "").trim();
+
+function isValidId(id) {
+  return /^[a-z0-9_-]+$/.test(id);
 }
-function normalizeCategory(v) {
-  return normalizeText(v);
-}
-function toInt(v) {
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : NaN;
-}
+
 function nowIso() {
   return new Date().toISOString();
 }
-function formatDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("de-DE");
+
+function formatTs(ts) {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString("de-DE", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+  } catch { return String(ts); }
 }
-function badgeFor(item) {
-  if (item.current_qty < item.min_qty) return { cls: "low", text: "UNTER MIN" };
-  if (item.current_qty < item.target_qty) return { cls: "warn", text: "ZU WENIG" };
-  return { cls: "ok", text: "OK" };
-}
-function packText(item) {
-  if (!item.pack_name || !item.pack_size || item.pack_size <= 0) return "";
-  const packs = Math.floor(item.current_qty / item.pack_size);
-  const rest = item.current_qty % item.pack_size;
-  if (packs <= 0) return `0 ${item.pack_name}, ${rest} ${item.unit_name}`;
-  if (rest === 0) return `${packs} ${item.pack_name}`;
-  return `${packs} ${item.pack_name} + ${rest} ${item.unit_name}`;
-}
-function getPublicImageUrl(path) {
+
+function getPublicUrl(path) {
   if (!path) return "";
-  return supabase.storage.from("images").getPublicUrl(path).data.publicUrl;
+  const { data } = supabase.storage.from(BUCKET_IMAGES).getPublicUrl(path);
+  // Cache buster damit Upload sofort sichtbar
+  return data.publicUrl + "?v=" + Date.now();
 }
 
-// PIN
+/** PIN */
 async function ensurePin() {
-  const ok = localStorage.getItem(PIN_STORAGE_KEY) === "1";
-  if (ok) return true;
+  const now = Date.now();
+  if (now < pinOkUntil) return true;
 
-  const p = prompt("PIN eingeben:");
-  if (!p) return false;
+  const pin = window.prompt("PIN eingeben:");
+  if (!pin) return false;
 
-  if (p.trim() !== EDIT_PIN) {
-    alert("Falsche PIN.");
+  if (pin.trim() !== EDIT_PIN) {
+    alert("Falscher PIN.");
     return false;
   }
-  localStorage.setItem(PIN_STORAGE_KEY, "1");
+
+  pinOkUntil = Date.now() + 10 * 60 * 1000;
   return true;
 }
 
-// Confirm
-function confirmAsk(title, text) {
-  confirmTitle.textContent = title;
-  confirmText.textContent = text;
-  confirmDialog.showModal();
+/** Actor popup */
+function requireActor() {
   return new Promise((resolve) => {
-    confirmResolve = resolve;
+    actorResolver = resolve;
+    actorInput.value = "";
+    actorHint.textContent = "";
+    actorModal.classList.remove("hidden");
+    setTimeout(() => actorInput.focus(), 0);
   });
 }
-confirmNo.addEventListener("click", () => {
-  confirmDialog.close();
-  if (confirmResolve) confirmResolve(false);
-  confirmResolve = null;
-});
-confirmYes.addEventListener("click", () => {
-  confirmDialog.close();
-  if (confirmResolve) confirmResolve(true);
-  confirmResolve = null;
-});
 
-// Navigation
-navOverview.addEventListener("click", () => setRoute("#/"));
-navTrash.addEventListener("click", () => setRoute("#/trash"));
-
-backBtn.addEventListener("click", () => history.back());
-
-newItemBtn.addEventListener("click", async () => {
-  setHint(newHint, "");
-  newId.value = "";
-  newName.value = "";
-  newCategoryFree.value = "";
-  newLocation.value = "";
-  newTarget.value = "10";
-  newCurrent.value = "0";
-  newMin.value = "0";
-  newUnitName.value = "Stück";
-  newPackName.value = "";
-  newPackSize.value = "";
-  newActor.value = "";
-  await refreshCategoryFilter();
-  newItemDialog.showModal();
-});
-
-newCancel.addEventListener("click", () => newItemDialog.close());
-newCreate.addEventListener("click", () => createItem());
-
-searchInput.addEventListener("input", () => loadItems());
-categoryFilter.addEventListener("change", () => loadItems());
-
-// Routing
-window.addEventListener("hashchange", handleRoute);
-
-function setRoute(hash) {
-  window.location.hash = hash;
+function closeActorModal() {
+  actorModal.classList.add("hidden");
 }
 
-function showSection(which) {
-  overviewSection.classList.add("hidden");
-  detailSection.classList.add("hidden");
-  trashSection.classList.add("hidden");
+btnActorCancel.addEventListener("click", () => {
+  closeActorModal();
+  if (actorResolver) actorResolver(null);
+  actorResolver = null;
+});
 
-  if (which === "overview") overviewSection.classList.remove("hidden");
-  if (which === "detail") detailSection.classList.remove("hidden");
-  if (which === "trash") trashSection.classList.remove("hidden");
-}
-
-async function handleRoute() {
-  const h = window.location.hash || "#/";
-  if (h.startsWith("#/item/")) {
-    const id = decodeURIComponent(h.slice("#/item/".length));
-    await openDetail(id);
+btnActorOk.addEventListener("click", () => {
+  const name = (actorInput.value || "").trim();
+  if (name.length < 2) {
+    actorHint.textContent = "Bitte einen Namen eingeben.";
     return;
   }
-  if (h === "#/trash") {
-    showSection("trash");
-    await loadTrash();
+  closeActorModal();
+  if (actorResolver) actorResolver(name);
+  actorResolver = null;
+});
+
+/** Routing */
+function showList() {
+  viewDetail.classList.add("hidden");
+  viewList.classList.remove("hidden");
+  document.querySelector(".brandSub").textContent = "Übersicht";
+  currentItem = null;
+}
+
+function showDetail(item) {
+  currentItem = item;
+  viewList.classList.add("hidden");
+  viewDetail.classList.remove("hidden");
+  document.querySelector(".brandSub").textContent = "Artikel";
+  renderDetail();
+}
+
+function openItem(id) {
+  const item = allItems.find(x => x.id === id);
+  if (!item) {
+    toastMsg("Artikel nicht gefunden.");
     return;
   }
-  showSection("overview");
-  await loadItems();
+  window.location.hash = `#/item/${encodeURIComponent(id)}`;
 }
 
-// Data
-async function refreshCategoryFilter() {
-  // Kategorien aus aktiven Items
-  const { data, error } = await supabase
-    .from("items")
-    .select("category")
-    .is("deleted_at", null);
-
-  if (error) return;
-
-  const cats = Array.from(new Set((data || []).map(x => (x.category || "").trim()).filter(Boolean)))
-    .sort((a,b) => a.localeCompare(b));
-
-  const prev = categoryFilter.value || "";
-  categoryFilter.innerHTML = `<option value="">Alle Kategorien</option>`;
-  for (const c of cats) {
-    const opt = document.createElement("option");
-    opt.value = c;
-    opt.textContent = c;
-    categoryFilter.appendChild(opt);
-  }
-  categoryFilter.value = prev;
-}
-
+/** Data loading */
 async function loadItems() {
-  setStatus("Lade Artikel …");
-  showMessage(homeMessage, null);
-
-  const q = (searchInput.value || "").trim().toLowerCase();
-  const cat = categoryFilter.value || "";
-
+  setHint(listHint, "Lade …");
   const { data, error } = await supabase
-    .from("items")
+    .from(TABLE_ITEMS)
     .select("*")
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
 
   if (error) {
-    showMessage(homeMessage, `Fehler beim Laden: ${error.message}`);
-    itemsGrid.innerHTML = "";
-    emptyHint.classList.remove("hidden");
-    setStatus("Fehler");
+    console.error(error);
+    setHint(listHint, "Fehler beim Laden: " + error.message);
+    allItems = [];
+    renderList();
     return;
   }
 
-  let items = data || [];
+  allItems = data || [];
+  setHint(listHint, allItems.length ? "" : "Noch keine Artikel vorhanden.");
+  rebuildFiltersAndDatalists();
+  renderList();
+}
 
-  if (cat) items = items.filter(x => (x.category || "") === cat);
+function rebuildFiltersAndDatalists() {
+  const cats = new Set();
+  const locs = new Set();
+
+  for (const it of allItems) {
+    if (it.category) cats.add(it.category);
+    if (it.location) locs.add(it.location);
+  }
+
+  // Filter selects
+  const catVal = categoryFilter.value;
+  const locVal = locationFilter.value;
+
+  categoryFilter.innerHTML = `<option value="">Alle Kategorien</option>` + [...cats].sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  locationFilter.innerHTML = `<option value="">Alle Standorte</option>` + [...locs].sort().map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("");
+
+  categoryFilter.value = cats.has(catVal) ? catVal : "";
+  locationFilter.value = locs.has(locVal) ? locVal : "";
+
+  // Datalists
+  categoryList.innerHTML = [...cats].sort().map(c => `<option value="${escapeHtml(c)}"></option>`).join("");
+  locationList.innerHTML = [...locs].sort().map(l => `<option value="${escapeHtml(l)}"></option>`).join("");
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/** List render */
+function computeState(it) {
+  const cur = Number(it.current_qty ?? it.ist ?? 0);
+  const target = Number(it.target_qty ?? it.soll ?? 0);
+  const min = Number(it.min_qty ?? 0);
+
+  if (min > 0 && cur < min) return { cls: "bad", text: "MIN" };
+  if (cur < target) return { cls: "warn", text: "ZU WENIG" };
+  return { cls: "ok", text: "OK" };
+}
+
+function renderList() {
+  const q = (searchInput.value || "").trim().toLowerCase();
+  const cat = categoryFilter.value;
+  const loc = locationFilter.value;
+
+  let items = [...allItems];
 
   if (q) {
-    items = items.filter(x => {
-      const hay = [
-        x.id, x.name, x.category, x.location
-      ].join(" ").toLowerCase();
+    items = items.filter(it => {
+      const hay = `${it.id} ${it.name||""} ${it.category||""} ${it.location||""}`.toLowerCase();
       return hay.includes(q);
     });
   }
-
-  await refreshCategoryFilter();
+  if (cat) items = items.filter(it => (it.category || "") === cat);
+  if (loc) items = items.filter(it => (it.location || "") === loc);
 
   itemsGrid.innerHTML = "";
-  if (!items.length) {
-    emptyHint.classList.remove("hidden");
-    setStatus("Keine Treffer");
-    return;
-  }
-  emptyHint.classList.add("hidden");
 
-  for (const item of items) {
-    const b = badgeFor(item);
+  if (!items.length) {
+    setHint(listHint, "Keine Treffer.");
+    return;
+  } else {
+    setHint(listHint, "");
+  }
+
+  for (const it of items) {
+    const cur = Number(it.current_qty ?? 0);
+    const target = Number(it.target_qty ?? 0);
+    const st = computeState(it);
 
     const card = document.createElement("div");
-    card.className = "card";
-    card.addEventListener("click", () => setRoute(`#/item/${encodeURIComponent(item.id)}`));
+    card.className = "card itemCard";
+    card.addEventListener("click", () => openItem(it.id));
 
     const thumb = document.createElement("div");
     thumb.className = "thumb";
-    if (item.image_path) {
+    if (it.image_path) {
       const img = document.createElement("img");
-      img.src = getPublicImageUrl(item.image_path);
+      img.src = getPublicUrl(it.image_path);
+      img.alt = "";
       thumb.appendChild(img);
     } else {
-      thumb.textContent = "Kein Bild";
+      const span = document.createElement("span");
+      span.textContent = "Kein Bild";
+      thumb.appendChild(span);
     }
 
-    const main = document.createElement("div");
-    main.className = "cardMain";
+    const info = document.createElement("div");
+    info.className = "itemInfo";
+    info.innerHTML = `
+      <div class="itemName">${escapeHtml(it.name || it.id)}</div>
+      <div class="itemSub">${escapeHtml(it.category || "Ohne Kategorie")} • ${escapeHtml(it.location || "Ohne Standort")}</div>
+      <div class="itemMeta">Bestand: <b>${cur}</b> / ${target}</div>
+      <div class="itemMeta">Zuletzt: ${escapeHtml(it.last_actor || "—")}, ${escapeHtml(formatTs(it.last_change_at || it.updated_at))}</div>
+    `;
 
-    const title = document.createElement("div");
-    title.className = "cardTitle";
-    title.textContent = item.name;
-
-    const qty = document.createElement("div");
-    qty.className = "cardQty";
-    const pack = packText(item);
-    qty.textContent = `${item.current_qty} / ${item.target_qty}${pack ? "  (" + pack + ")" : ""}`;
-
-    const sub = document.createElement("div");
-    sub.className = "cardSub";
-    sub.textContent = `Standort: ${item.location}  |  Zuletzt: ${item.last_actor || "-"}, ${formatDate(item.last_change_at || item.updated_at)}`;
-
-    main.appendChild(title);
-    main.appendChild(qty);
-    main.appendChild(sub);
-
-    const badge = document.createElement("div");
-    badge.className = `badge ${b.cls}`;
-    badge.textContent = b.text;
+    const pill = document.createElement("div");
+    pill.className = `pill ${st.cls}`;
+    pill.textContent = st.text;
 
     card.appendChild(thumb);
-    card.appendChild(main);
-    card.appendChild(badge);
+    card.appendChild(info);
+    card.appendChild(pill);
 
     itemsGrid.appendChild(card);
   }
-
-  setStatus(`Artikel: ${items.length}`);
 }
 
-async function loadTrash() {
-  setStatus("Lade Papierkorb …");
-  showMessage(trashMessage, null);
+/** Detail render */
+function renderDetail() {
+  if (!currentItem) return;
 
+  detailTitle.textContent = currentItem.name || currentItem.id;
+  detailMeta.textContent =
+    `Kategorie: ${currentItem.category || "—"} | Standort: ${currentItem.location || "—"} | Zuletzt: ${currentItem.last_actor || "—"}, ${formatTs(currentItem.last_change_at || currentItem.updated_at)}`;
+
+  d_id.value = currentItem.id;
+  d_name.value = currentItem.name || "";
+  d_category.value = currentItem.category || "";
+  d_location.value = currentItem.location || "";
+  d_unit.value = currentItem.unit_name || "Stück";
+  d_min.value = Number(currentItem.min_qty ?? 0);
+  d_target.value = Number(currentItem.target_qty ?? 0);
+  d_current.value = Number(currentItem.current_qty ?? 0);
+  d_pack_name.value = currentItem.pack_name || "";
+  d_pack_size.value = currentItem.pack_size ?? "";
+
+  // Image
+  if (currentItem.image_path) {
+    detailNoImage.classList.add("hidden");
+    detailImage.classList.remove("hidden");
+    detailImage.src = getPublicUrl(currentItem.image_path);
+  } else {
+    detailImage.classList.add("hidden");
+    detailNoImage.classList.remove("hidden");
+  }
+
+  // stock state
+  updateStockUI();
+
+  // pack hint
+  const ps = Number(currentItem.pack_size || 0);
+  if (ps > 0) {
+    packHint.textContent = `Pack: ${ps} ${currentItem.unit_name || "Stück"} pro ${currentItem.pack_name || "Packung"}.`;
+    btnDeltaPackMinus.disabled = false;
+    btnDeltaPackPlus.disabled = false;
+  } else {
+    packHint.textContent = `Tipp: Packung Größe setzen (z.B. 16) für +1 Pack / -1 Pack.`;
+    btnDeltaPackMinus.disabled = true;
+    btnDeltaPackPlus.disabled = true;
+  }
+
+  // qr link
+  const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, "/");
+  qrLink.textContent = `${window.location.origin}${window.location.pathname}#/item/${currentItem.id}`;
+
+  loadLogs(currentItem.id);
+}
+
+function updateStockUI() {
+  const cur = Number(currentItem.current_qty ?? 0);
+  const target = Number(currentItem.target_qty ?? 0);
+  stockValue.textContent = String(cur);
+
+  const st = computeState(currentItem);
+  stockState.className = `pill ${st.cls}`;
+  stockState.textContent = st.text;
+}
+
+/** Logs */
+async function loadLogs(itemId) {
+  logList.innerHTML = "Lade …";
   const { data, error } = await supabase
-    .from("items")
+    .from(TABLE_LOGS)
     .select("*")
-    .not("deleted_at", "is", null)
-    .order("deleted_at", { ascending: false });
+    .eq("item_id", itemId)
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   if (error) {
-    showMessage(trashMessage, `Fehler: ${error.message}`);
-    trashGrid.innerHTML = "";
-    trashEmpty.classList.remove("hidden");
-    setStatus("Fehler");
+    console.error(error);
+    logList.innerHTML = `<div class="smallHint">Logs konnten nicht geladen werden: ${escapeHtml(error.message)}</div>`;
     return;
   }
 
-  const items = data || [];
-  trashGrid.innerHTML = "";
-  if (!items.length) {
-    trashEmpty.classList.remove("hidden");
-    setStatus("Papierkorb leer");
+  const logs = data || [];
+  if (!logs.length) {
+    logList.innerHTML = `<div class="smallHint">Noch keine Änderungen.</div>`;
     return;
   }
-  trashEmpty.classList.add("hidden");
 
-  for (const item of items) {
-    const card = document.createElement("div");
-    card.className = "card";
-
-    const thumb = document.createElement("div");
-    thumb.className = "thumb";
-    if (item.image_path) {
-      const img = document.createElement("img");
-      img.src = getPublicImageUrl(item.image_path);
-      thumb.appendChild(img);
-    } else {
-      thumb.textContent = "Kein Bild";
-    }
-
-    const main = document.createElement("div");
-    main.className = "cardMain";
-
-    const title = document.createElement("div");
-    title.className = "cardTitle";
-    title.textContent = item.name;
-
-    const sub = document.createElement("div");
-    sub.className = "cardSub";
-    sub.textContent = `Gelöscht: ${formatDate(item.deleted_at)}  |  Standort: ${item.location}`;
-
-    main.appendChild(title);
-    main.appendChild(sub);
-
-    const actions = document.createElement("div");
-    actions.style.display = "flex";
-    actions.style.flexDirection = "column";
-    actions.style.gap = "8px";
-
-    const restoreBtn = document.createElement("button");
-    restoreBtn.className = "btn secondary";
-    restoreBtn.textContent = "Wiederherstellen";
-    restoreBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await restoreItem(item.id);
-    });
-
-    const hardBtn = document.createElement("button");
-    hardBtn.className = "btn danger";
-    hardBtn.textContent = "Endgültig löschen";
-    hardBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await hardDeleteItem(item.id);
-    });
-
-    actions.appendChild(restoreBtn);
-    actions.appendChild(hardBtn);
-
-    card.appendChild(thumb);
-    card.appendChild(main);
-    card.appendChild(actions);
-
-    trashGrid.appendChild(card);
+  logList.innerHTML = "";
+  for (const l of logs) {
+    const div = document.createElement("div");
+    div.className = "logItem";
+    div.innerHTML = `
+      <div class="logTop">
+        <div class="logMain">${escapeHtml(l.action || "action")}${l.delta != null ? ` (${l.delta > 0 ? "+" : ""}${l.delta})` : ""}</div>
+        <div class="pill ${l.delta != null && l.delta < 0 ? "warn" : "ok"}">${escapeHtml(l.actor || "—")}</div>
+      </div>
+      <div class="logSub">${escapeHtml(l.note || "")} • ${escapeHtml(formatTs(l.created_at))}</div>
+    `;
+    logList.appendChild(div);
   }
-
-  setStatus(`Papierkorb: ${items.length}`);
 }
 
-// Create
-async function createItem() {
-  setHint(newHint, "");
+/** CRUD: Create */
+function openCreateModal() {
+  createHint.textContent = "";
+  c_id.value = "";
+  c_name.value = "";
+  c_category.value = "";
+  c_location.value = "";
+  c_target.value = "0";
+  c_current.value = "0";
+  c_min.value = "0";
+  c_unit.value = "Stück";
+  c_pack_name.value = "";
+  c_pack_size.value = "";
+  createModal.classList.remove("hidden");
+  setTimeout(() => c_id.focus(), 0);
+}
+
+function closeCreateModal() {
+  createModal.classList.add("hidden");
+}
+
+btnOpenCreate.addEventListener("click", openCreateModal);
+btnCreateCancel.addEventListener("click", closeCreateModal);
+
+btnCreate.addEventListener("click", async () => {
+  createHint.textContent = "Prüfe …";
 
   const ok = await ensurePin();
-  if (!ok) { setHint(newHint, "PIN abgebrochen."); return; }
+  if (!ok) { createHint.textContent = "PIN abgebrochen."; return; }
 
-  const actor = normalizeText(newActor.value);
-  if (actor.length < 2) { setHint(newHint, "Wer legt an? ist Pflicht."); return; }
+  const actor = await requireActor();
+  if (!actor) { createHint.textContent = "Abgebrochen."; return; }
 
-  const id = normalizeId(newId.value);
-  if (!id) { setHint(newHint, "Ungültige ID. Erlaubt: a-z 0-9 _ -"); return; }
+  const idRaw = c_id.value;
+  const id = normalizeId(idRaw);
+  if (!id || !isValidId(id)) { createHint.textContent = "Ungültige ID (a-z, 0-9, _ und -)."; return; }
 
-  const name = normalizeText(newName.value);
-  if (!name) { setHint(newHint, "Name ist Pflicht."); return; }
+  const name = (c_name.value || "").trim();
+  const category = (c_category.value || "").trim();
+  const location = (c_location.value || "").trim();
 
-  const category = normalizeCategory(newCategoryFree.value);
-  if (!category) { setHint(newHint, "Kategorie ist Pflicht."); return; }
+  const target = Number(c_target.value);
+  const current = Number(c_current.value);
+  const min = Number(c_min.value);
 
-  const location = normalizeText(newLocation.value);
-  if (!location) { setHint(newHint, "Standort ist Pflicht."); return; }
+  if (!name) { createHint.textContent = "Name ist Pflicht."; return; }
+  if (!category) { createHint.textContent = "Kategorie ist Pflicht."; return; }
+  if (!location) { createHint.textContent = "Standort ist Pflicht."; return; }
+  if (!Number.isFinite(target) || target < 0) { createHint.textContent = "Soll ist ungültig."; return; }
+  if (!Number.isFinite(current) || current < 0) { createHint.textContent = "Ist ist ungültig."; return; }
 
-  const target = toInt(newTarget.value);
-  const current = toInt(newCurrent.value);
-  const minQty = toInt(newMin.value);
+  const unit = (c_unit.value || "Stück").trim() || "Stück";
+  const packName = (c_pack_name.value || "").trim();
+  const packSize = c_pack_size.value === "" ? null : Number(c_pack_size.value);
 
-  if (!Number.isFinite(target) || target < 0) { setHint(newHint, "Soll ist Pflicht und muss >= 0 sein."); return; }
-  if (!Number.isFinite(current) || current < 0) { setHint(newHint, "Ist ist Pflicht und muss >= 0 sein."); return; }
-  if (!Number.isFinite(minQty) || minQty < 0) { setHint(newHint, "Mindestbestand muss >= 0 sein."); return; }
-
-  const unit = normalizeText(newUnitName.value) || "Stück";
-  const packName = normalizeText(newPackName.value) || null;
-  const packSizeRaw = toInt(newPackSize.value);
-  const packSize = (packName && Number.isFinite(packSizeRaw) && packSizeRaw > 0) ? packSizeRaw : null;
-
-  setHint(newHint, "Speichere …");
-
-  const { data: exists, error: exErr } = await supabase
-    .from("items")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (exErr) { setHint(newHint, exErr.message); return; }
-  if (exists) { setHint(newHint, "Diese ID existiert bereits."); return; }
+  createHint.textContent = "Lege an …";
 
   const payload = {
     id,
@@ -501,514 +520,385 @@ async function createItem() {
     category,
     location,
     unit_name: unit,
+    min_qty: Number.isFinite(min) && min >= 0 ? min : 0,
     target_qty: target,
-    min_qty: minQty,
     current_qty: current,
-    pack_name: packName,
-    pack_size: packSize,
-    deleted_at: null,
+    pack_name: packName || null,
+    pack_size: Number.isFinite(packSize) && packSize > 0 ? packSize : null,
     last_actor: actor,
-    last_change_at: nowIso()
+    last_change_at: nowIso(),
+    updated_at: nowIso(),
+    deleted_at: null
   };
 
-  const { data: inserted, error } = await supabase
-    .from("items")
-    .insert(payload)
-    .select("*")
-    .single();
+  const { data, error } = await supabase.from(TABLE_ITEMS).insert(payload).select("*").single();
 
-  if (error) { setHint(newHint, `Fehler: ${error.message}`); return; }
+  if (error) {
+    console.error(error);
+    createHint.textContent = "Fehler: " + error.message;
+    return;
+  }
 
-  await supabase.from("logs").insert({
-    item_id: inserted.id,
+  await supabase.from(TABLE_LOGS).insert({
+    item_id: id,
     actor,
     action: "create",
-    delta: 0,
-    prev_qty: 0,
-    new_qty: inserted.current_qty,
-    snapshot_name: inserted.name,
-    snapshot_category: inserted.category,
-    snapshot_location: inserted.location,
-    snapshot_target: inserted.target_qty,
-    snapshot_min: inserted.min_qty,
+    delta: null,
     note: "Artikel angelegt"
   });
 
-  setHint(newHint, "Artikel angelegt ✓");
-  newItemDialog.close();
+  toastMsg("Artikel angelegt");
+  closeCreateModal();
   await loadItems();
-  setRoute(`#/item/${encodeURIComponent(inserted.id)}`);
-}
-
-// Detail
-async function openDetail(id) {
-  setStatus("Lade Artikel …");
-  showSection("detail");
-  showMessage(homeMessage, null);
-
-  const { data, error } = await supabase
-    .from("items")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error || !data) {
-    setStatus("Artikel nicht gefunden");
-    currentItem = null;
-    return;
-  }
-  currentItem = data;
-
-  renderDetail();
-  await loadDetailLogs();
-  setStatus("Bereit");
-}
-
-function renderDetail() {
-  const item = currentItem;
-  if (!item) return;
-
-  detailId.textContent = item.id;
-  detailName.value = item.name || "";
-  detailCategory.value = item.category || "";
-  detailLocation.value = item.location || "";
-  detailTarget.value = item.target_qty ?? 0;
-  detailMin.value = item.min_qty ?? 0;
-  detailUnit.value = item.unit_name || "Stück";
-
-  detailPackName.value = item.pack_name || "";
-  detailPackSize.value = item.pack_size || "";
-
-  detailCurrent.textContent = String(item.current_qty ?? 0);
-
-  detailActor.value = ""; // niemals automatisch
-
-  const b = badgeFor(item);
-  const pack = packText(item);
-  detailMetaLine.textContent =
-    `Status: ${b.text}  |  ${pack ? "Anzeige: " + pack + "  |  " : ""}Zuletzt: ${item.last_actor || "-"}, ${formatDate(item.last_change_at || item.updated_at)}`;
-
-  const url = `${window.location.origin}${window.location.pathname}#/item/${encodeURIComponent(item.id)}`;
-  qrLink.textContent = url;
-
-  if (item.image_path) {
-    detailNoImage.classList.add("hidden");
-    detailImage.classList.remove("hidden");
-    detailImage.src = getPublicImageUrl(item.image_path);
-  } else {
-    detailNoImage.classList.remove("hidden");
-    detailImage.classList.add("hidden");
-    detailImage.src = "";
-  }
-
-  // Pack buttons
-  if (item.pack_name && item.pack_size && item.pack_size > 0) {
-    btnPackMinus.classList.remove("hidden");
-    btnPackPlus.classList.remove("hidden");
-    btnPackMinus.textContent = `-1 ${item.pack_name} (-${item.pack_size})`;
-    btnPackPlus.textContent = `+1 ${item.pack_name} (+${item.pack_size})`;
-  } else {
-    btnPackMinus.classList.add("hidden");
-    btnPackPlus.classList.add("hidden");
-  }
-}
-
-// Quantity buttons
-document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-delta]");
-  if (!btn) return;
-  if (!currentItem) return;
-
-  const delta = toInt(btn.getAttribute("data-delta"));
-  if (!Number.isFinite(delta)) return;
-
-  await adjustQty(delta);
+  openItem(id);
 });
 
-btnPackMinus.addEventListener("click", async () => {
-  if (!currentItem?.pack_size) return;
-  await adjustQty(-currentItem.pack_size);
-});
-btnPackPlus.addEventListener("click", async () => {
-  if (!currentItem?.pack_size) return;
-  await adjustQty(currentItem.pack_size);
-});
-
-async function requireActor() {
-  const actor = normalizeText(detailActor.value);
-  if (actor.length < 2) {
-    setStatus("Bitte Namen für Änderung eintragen");
-    return "";
-  }
-  return actor;
-}
-
-async function adjustQty(delta) {
-  const ok = await ensurePin();
-  if (!ok) { setStatus("PIN abgebrochen"); return; }
-
-  const actor = await requireActor();
-  if (!actor) return;
-
-  const prev = currentItem.current_qty ?? 0;
-  const next = Math.max(0, prev + delta);
-
-  const { data: updated, error } = await supabase
-    .from("items")
-    .update({
-      current_qty: next,
-      last_actor: actor,
-      last_change_at: nowIso(),
-      deleted_at: null
-    })
-    .eq("id", currentItem.id)
-    .select("*")
-    .single();
-
-  if (error) { setStatus(`Fehler: ${error.message}`); return; }
-
-  await supabase.from("logs").insert({
-    item_id: currentItem.id,
-    actor,
-    action: "adjust",
-    delta,
-    prev_qty: prev,
-    new_qty: next,
-    snapshot_name: updated.name,
-    snapshot_category: updated.category,
-    snapshot_location: updated.location,
-    snapshot_target: updated.target_qty,
-    snapshot_min: updated.min_qty,
-    note: delta >= 0 ? "Bestand erhöht" : "Bestand reduziert"
-  });
-
-  currentItem = updated;
-  renderDetail();
-  await loadDetailLogs();
-  await loadItems();
-  setStatus("Gespeichert");
-}
-
-// Save meta
+/** CRUD: Save Meta */
 btnSaveMeta.addEventListener("click", async () => {
   if (!currentItem) return;
 
   const ok = await ensurePin();
-  if (!ok) { setStatus("PIN abgebrochen"); return; }
+  if (!ok) return;
+
+  const name = (d_name.value || "").trim();
+  const category = (d_category.value || "").trim();
+  const location = (d_location.value || "").trim();
+
+  const target = Number(d_target.value);
+  const current = Number(d_current.value);
+  const min = Number(d_min.value);
+
+  if (!name) { alert("Name ist Pflicht."); return; }
+  if (!category) { alert("Kategorie ist Pflicht."); return; }
+  if (!location) { alert("Standort ist Pflicht."); return; }
+  if (!Number.isFinite(target) || target < 0) { alert("Soll ist ungültig."); return; }
+  if (!Number.isFinite(current) || current < 0) { alert("Ist ist ungültig."); return; }
+
+  const unit = (d_unit.value || "Stück").trim() || "Stück";
+  const packName = (d_pack_name.value || "").trim();
+  const packSize = d_pack_size.value === "" ? null : Number(d_pack_size.value);
 
   const actor = await requireActor();
   if (!actor) return;
 
-  const name = normalizeText(detailName.value);
-  const category = normalizeCategory(detailCategory.value);
-  const location = normalizeText(detailLocation.value);
-  const target = toInt(detailTarget.value);
-  const minQty = toInt(detailMin.value);
-  const unit = normalizeText(detailUnit.value) || "Stück";
+  const patch = {
+    name,
+    category,
+    location,
+    unit_name: unit,
+    min_qty: Number.isFinite(min) && min >= 0 ? min : 0,
+    target_qty: target,
+    current_qty: current,
+    pack_name: packName || null,
+    pack_size: Number.isFinite(packSize) && packSize > 0 ? packSize : null,
+    last_actor: actor,
+    last_change_at: nowIso(),
+    updated_at: nowIso()
+  };
 
-  if (!name || !category || !location) {
-    setStatus("Pflichtfelder fehlen: Name, Kategorie, Standort");
+  const { data, error } = await supabase
+    .from(TABLE_ITEMS)
+    .update(patch)
+    .eq("id", currentItem.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error(error);
+    alert("Fehler beim Speichern: " + error.message);
     return;
   }
-  if (!Number.isFinite(target) || target < 0) { setStatus("Soll muss >= 0 sein"); return; }
-  if (!Number.isFinite(minQty) || minQty < 0) { setStatus("Mindestbestand muss >= 0 sein"); return; }
 
-  const pn = normalizeText(detailPackName.value) || null;
-  const psRaw = toInt(detailPackSize.value);
-  const ps = (pn && Number.isFinite(psRaw) && psRaw > 0) ? psRaw : null;
+  await supabase.from(TABLE_LOGS).insert({
+    item_id: currentItem.id,
+    actor,
+    action: "update_meta",
+    delta: null,
+    note: "Stammdaten gespeichert"
+  });
 
-  const { data: updated, error } = await supabase
-    .from("items")
+  currentItem = data;
+  toastMsg("Gespeichert");
+  await loadItems();
+  renderDetail();
+});
+
+/** Stock delta buttons */
+document.querySelectorAll("[data-delta]").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (!currentItem) return;
+
+    const ok = await ensurePin();
+    if (!ok) return;
+
+    const actor = await requireActor();
+    if (!actor) return;
+
+    const delta = Number(btn.getAttribute("data-delta"));
+    const newQty = Math.max(0, Number(currentItem.current_qty ?? 0) + delta);
+
+    const { data, error } = await supabase
+      .from(TABLE_ITEMS)
+      .update({
+        current_qty: newQty,
+        last_actor: actor,
+        last_change_at: nowIso(),
+        updated_at: nowIso()
+      })
+      .eq("id", currentItem.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error(error);
+      alert("Fehler: " + error.message);
+      return;
+    }
+
+    await supabase.from(TABLE_LOGS).insert({
+      item_id: currentItem.id,
+      actor,
+      action: "adjust_qty",
+      delta,
+      note: `Bestand geändert (${delta > 0 ? "+" : ""}${delta})`
+    });
+
+    currentItem = data;
+    updateStockUI();
+    await loadItems();
+    loadLogs(currentItem.id);
+  });
+});
+
+/** Pack +/- */
+btnDeltaPackMinus.addEventListener("click", async () => adjustByPack(-1));
+btnDeltaPackPlus.addEventListener("click", async () => adjustByPack(+1));
+
+async function adjustByPack(sign) {
+  if (!currentItem) return;
+  const ps = Number(currentItem.pack_size || 0);
+  if (!(ps > 0)) return;
+
+  const ok = await ensurePin();
+  if (!ok) return;
+
+  const actor = await requireActor();
+  if (!actor) return;
+
+  const delta = sign * ps;
+  const newQty = Math.max(0, Number(currentItem.current_qty ?? 0) + delta);
+
+  const { data, error } = await supabase
+    .from(TABLE_ITEMS)
     .update({
-      name,
-      category,
-      location,
-      target_qty: target,
-      min_qty: minQty,
-      unit_name: unit,
-      pack_name: pn,
-      pack_size: ps,
+      current_qty: newQty,
       last_actor: actor,
       last_change_at: nowIso(),
-      deleted_at: null
+      updated_at: nowIso()
     })
     .eq("id", currentItem.id)
     .select("*")
     .single();
 
-  if (error) { setStatus(`Fehler: ${error.message}`); return; }
+  if (error) {
+    console.error(error);
+    alert("Fehler: " + error.message);
+    return;
+  }
 
-  await supabase.from("logs").insert({
+  await supabase.from(TABLE_LOGS).insert({
     item_id: currentItem.id,
     actor,
-    action: "update",
-    delta: 0,
-    prev_qty: updated.current_qty,
-    new_qty: updated.current_qty,
-    snapshot_name: updated.name,
-    snapshot_category: updated.category,
-    snapshot_location: updated.location,
-    snapshot_target: updated.target_qty,
-    snapshot_min: updated.min_qty,
-    note: "Stammdaten gespeichert"
+    action: "adjust_pack",
+    delta,
+    note: `${sign > 0 ? "+1" : "-1"} Pack (${ps} ${currentItem.unit_name || "Stück"})`
   });
 
-  currentItem = updated;
-  renderDetail();
-  await loadDetailLogs();
+  currentItem = data;
+  updateStockUI();
   await loadItems();
-  setStatus("Stammdaten gespeichert");
-});
+  loadLogs(currentItem.id);
+}
 
-// Upload image
-btnTakePhoto.addEventListener("click", () => cameraInput.click());
-btnPickFile.addEventListener("click", () => fileInput.click());
-
-cameraInput.addEventListener("change", async () => {
-  if (cameraInput.files?.[0]) await uploadImage(cameraInput.files[0]);
-  cameraInput.value = "";
-});
-fileInput.addEventListener("change", async () => {
-  if (fileInput.files?.[0]) await uploadImage(fileInput.files[0]);
-  fileInput.value = "";
-});
-
-async function uploadImage(file) {
+/** Delete (soft delete) */
+btnDelete.addEventListener("click", async () => {
   if (!currentItem) return;
 
   const ok = await ensurePin();
-  if (!ok) { setStatus("PIN abgebrochen"); return; }
+  if (!ok) return;
+
+  if (!confirm("Artikel wirklich löschen? (Er verschwindet aus der Übersicht, Logs bleiben.)")) return;
 
   const actor = await requireActor();
   if (!actor) return;
+
+  const { error } = await supabase
+    .from(TABLE_ITEMS)
+    .update({
+      deleted_at: nowIso(),
+      last_actor: actor,
+      last_change_at: nowIso(),
+      updated_at: nowIso()
+    })
+    .eq("id", currentItem.id);
+
+  if (error) {
+    console.error(error);
+    alert("Fehler: " + error.message);
+    return;
+  }
+
+  await supabase.from(TABLE_LOGS).insert({
+    item_id: currentItem.id,
+    actor,
+    action: "delete_soft",
+    delta: null,
+    note: "Artikel soft gelöscht"
+  });
+
+  toastMsg("Gelöscht");
+  window.location.hash = "#/";
+  await loadItems();
+});
+
+/** Image upload */
+btnTakePhoto.addEventListener("click", () => fileCamera.click());
+btnPickPhoto.addEventListener("click", () => filePicker.click());
+
+fileCamera.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = "";
+  if (f) await uploadImageForCurrentItem(f);
+});
+filePicker.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = "";
+  if (f) await uploadImageForCurrentItem(f);
+});
+
+async function uploadImageForCurrentItem(file) {
+  if (!currentItem) return;
+
+  imageHint.textContent = "";
+
+  const ok = await ensurePin();
+  if (!ok) return;
+
+  const actor = await requireActor();
+  if (!actor) return;
+
+  // Basic validation
+  if (!file.type.startsWith("image/")) {
+    alert("Bitte eine Bilddatei auswählen.");
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    alert("Bild ist zu groß (max 8 MB).");
+    return;
+  }
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `items/${currentItem.id}/${Date.now()}.${ext}`;
 
-  setStatus("Bild wird hochgeladen …");
+  imageHint.textContent = "Upload läuft …";
 
   const up = await supabase.storage
-    .from("images")
+    .from(BUCKET_IMAGES)
     .upload(path, file, { upsert: true, contentType: file.type });
 
   if (up.error) {
-    setStatus(`Upload Fehler: ${up.error.message}`);
+    console.error("UPLOAD ERROR", up.error);
+    imageHint.textContent = "Upload Fehler: " + up.error.message;
+    alert("Upload Fehler: " + up.error.message);
     return;
   }
 
-  const { data: updated, error } = await supabase
-    .from("items")
+  // Save path to DB
+  const { data, error } = await supabase
+    .from(TABLE_ITEMS)
     .update({
       image_path: path,
       last_actor: actor,
       last_change_at: nowIso(),
-      deleted_at: null
+      updated_at: nowIso()
     })
     .eq("id", currentItem.id)
     .select("*")
     .single();
-
-  if (error) { setStatus(`DB Fehler: ${error.message}`); return; }
-
-  await supabase.from("logs").insert({
-    item_id: currentItem.id,
-    actor,
-    action: "upload_image",
-    note: "Bild hochgeladen",
-    snapshot_name: updated.name,
-    snapshot_category: updated.category,
-    snapshot_location: updated.location,
-    snapshot_target: updated.target_qty,
-    snapshot_min: updated.min_qty
-  });
-
-  currentItem = updated;
-  renderDetail();
-  await loadDetailLogs();
-  await loadItems();
-  setStatus("Bild gespeichert");
-}
-
-// Soft delete
-btnSoftDelete.addEventListener("click", async () => {
-  if (!currentItem) return;
-
-  const ok = await ensurePin();
-  if (!ok) { setStatus("PIN abgebrochen"); return; }
-
-  const actor = await requireActor();
-  if (!actor) return;
-
-  const yes = await confirmAsk("Löschen", "Artikel in den Papierkorb verschieben?");
-  if (!yes) return;
-
-  const { data: updated, error } = await supabase
-    .from("items")
-    .update({
-      deleted_at: nowIso(),
-      last_actor: actor,
-      last_change_at: nowIso()
-    })
-    .eq("id", currentItem.id)
-    .select("*")
-    .single();
-
-  if (error) { setStatus(`Fehler: ${error.message}`); return; }
-
-  await supabase.from("logs").insert({
-    item_id: currentItem.id,
-    actor,
-    action: "soft_delete",
-    note: "In Papierkorb verschoben",
-    snapshot_name: updated.name,
-    snapshot_category: updated.category,
-    snapshot_location: updated.location,
-    snapshot_target: updated.target_qty,
-    snapshot_min: updated.min_qty
-  });
-
-  setStatus("In Papierkorb verschoben");
-  currentItem = null;
-  await loadItems();
-  setRoute("#/");
-});
-
-// Restore + Hard delete
-async function restoreItem(id) {
-  const ok = await ensurePin();
-  if (!ok) { setStatus("PIN abgebrochen"); return; }
-
-  const actor = prompt("Wer stellt wieder her? (Pflicht)");
-  if (!actor || actor.trim().length < 2) { setStatus("Name fehlt"); return; }
-
-  const { data: updated, error } = await supabase
-    .from("items")
-    .update({
-      deleted_at: null,
-      last_actor: actor.trim(),
-      last_change_at: nowIso()
-    })
-    .eq("id", id)
-    .select("*")
-    .single();
-
-  if (error) { setStatus(`Fehler: ${error.message}`); return; }
-
-  await supabase.from("logs").insert({
-    item_id: id,
-    actor: actor.trim(),
-    action: "restore",
-    note: "Wiederhergestellt",
-    snapshot_name: updated.name,
-    snapshot_category: updated.category,
-    snapshot_location: updated.location,
-    snapshot_target: updated.target_qty,
-    snapshot_min: updated.min_qty
-  });
-
-  await loadTrash();
-  await loadItems();
-  setStatus("Wiederhergestellt");
-}
-
-async function hardDeleteItem(id) {
-  const ok = await ensurePin();
-  if (!ok) { setStatus("PIN abgebrochen"); return; }
-
-  const actor = prompt("Wer löscht endgültig? (Pflicht)");
-  if (!actor || actor.trim().length < 2) { setStatus("Name fehlt"); return; }
-
-  const yes = await confirmAsk("Endgültig löschen", "Das kann nicht rückgängig gemacht werden. Fortfahren?");
-  if (!yes) return;
-
-  const { data: item } = await supabase.from("items").select("*").eq("id", id).maybeSingle();
-
-  if (item?.image_path) {
-    await supabase.storage.from("images").remove([item.image_path]);
-  }
-
-  const del = await supabase.from("items").delete().eq("id", id);
-  if (del.error) { setStatus(`Fehler: ${del.error.message}`); return; }
-
-  await supabase.from("logs").insert({
-    item_id: id,
-    actor: actor.trim(),
-    action: "hard_delete",
-    note: "Endgültig gelöscht"
-  });
-
-  await loadTrash();
-  await loadItems();
-  setStatus("Endgültig gelöscht");
-}
-
-async function loadDetailLogs() {
-  if (!currentItem) return;
-
-  const { data, error } = await supabase
-    .from("logs")
-    .select("*")
-    .eq("item_id", currentItem.id)
-    .order("created_at", { ascending: false })
-    .limit(12);
 
   if (error) {
-    detailLogs.innerHTML = "";
+    console.error("DB image_path error", error);
+    imageHint.textContent = "DB Fehler: " + error.message;
+    alert("DB Fehler: " + error.message);
     return;
   }
 
-  const logs = data || [];
-  detailLogs.innerHTML = "";
+  await supabase.from(TABLE_LOGS).insert({
+    item_id: currentItem.id,
+    actor,
+    action: "upload_image",
+    delta: null,
+    note: "Bild hochgeladen"
+  });
 
-  for (const l of logs) {
-    const row = document.createElement("div");
-    row.className = "logRow";
+  currentItem = data;
 
-    const top = document.createElement("div");
-    top.className = "logRowTop";
+  // Render
+  detailNoImage.classList.add("hidden");
+  detailImage.classList.remove("hidden");
+  detailImage.src = getPublicUrl(path);
 
-    const main = document.createElement("div");
-    main.className = "logRowMain";
-
-    const when = document.createElement("div");
-    when.className = "logRowMain";
-    when.style.fontWeight = "700";
-    when.style.color = "#64748b";
-
-    let txt = l.action;
-    if (l.action === "adjust") {
-      const sign = (l.delta || 0) >= 0 ? "+" : "";
-      txt = `Bestand ${sign}${l.delta}  (${l.prev_qty} → ${l.new_qty})`;
-    }
-    if (l.action === "create") txt = "Artikel angelegt";
-    if (l.action === "update") txt = "Stammdaten gespeichert";
-    if (l.action === "upload_image") txt = "Bild hochgeladen";
-    if (l.action === "soft_delete") txt = "In Papierkorb verschoben";
-    if (l.action === "restore") txt = "Wiederhergestellt";
-    if (l.action === "hard_delete") txt = "Endgültig gelöscht";
-
-    main.textContent = txt;
-    when.textContent = formatDate(l.created_at);
-
-    top.appendChild(main);
-    top.appendChild(when);
-
-    const sub = document.createElement("div");
-    sub.className = "logRowSub";
-    sub.textContent = `von ${l.actor}${l.note ? "  |  " + l.note : ""}`;
-
-    row.appendChild(top);
-    row.appendChild(sub);
-
-    detailLogs.appendChild(row);
-  }
+  imageHint.textContent = "Bild gespeichert.";
+  toastMsg("Bild gespeichert");
+  await loadItems();
+  loadLogs(currentItem.id);
 }
 
-// Boot
+/** Filters */
+searchInput.addEventListener("input", renderList);
+categoryFilter.addEventListener("change", renderList);
+locationFilter.addEventListener("change", renderList);
+
+/** Navigation buttons */
+btnHome.addEventListener("click", () => window.location.hash = "#/");
+btnBack.addEventListener("click", () => window.location.hash = "#/");
+
+/** Hash routing */
+window.addEventListener("hashchange", handleRoute);
+
+function handleRoute() {
+  const h = window.location.hash || "#/";
+  const m = h.match(/^#\/item\/(.+)$/);
+  if (m) {
+    const id = decodeURIComponent(m[1]);
+    const item = allItems.find(x => x.id === id);
+    if (item) showDetail(item);
+    else {
+      // If list not loaded yet, load and then route
+      loadItems().then(() => {
+        const again = allItems.find(x => x.id === id);
+        if (again) showDetail(again);
+        else {
+          toastMsg("Artikel nicht gefunden.");
+          window.location.hash = "#/";
+        }
+      });
+    }
+    return;
+  }
+  showList();
+}
+
+/** Init */
 (async function init() {
-  setStatus("Starte …");
-  await refreshCategoryFilter();
-  await handleRoute();
-  setStatus("Bereit");
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes("PASTE_")) {
+    alert("Bitte SUPABASE_URL und SUPABASE_ANON_KEY in app.js eintragen.");
+    return;
+  }
+
+  await loadItems();
+  handleRoute();
 })();
+
+
 
