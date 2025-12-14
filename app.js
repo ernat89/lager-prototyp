@@ -895,13 +895,7 @@ searchInput.addEventListener("keydown", (e) => {
 });
 categoryFilter.addEventListener("change", renderItems);
 
-newItemBtn.addEventListener("click", async () => {
-  setHint(newHint, "");
-  newCategoryFree.value = "";
-  clearNewActor();
-  await refreshCategoryLists();
-  newItemDialog.showModal();
-});
+newItemBtn.addEventListener
 cancelNewBtn.addEventListener("click", () => newItemDialog.close());
 newItemForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -974,4 +968,5 @@ async function handleRoute() {
 
 window.addEventListener("hashchange", handleRoute);
 handleRoute();
+
 
