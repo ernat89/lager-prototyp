@@ -456,13 +456,15 @@ toast("Bild gespeichert.");
 }
 
 async function createItem() {
-  setHint(newHint, "");
+  setHint(newHint, "Prüfe Eingaben …");
   const ok = await ensurePin();
   if (!ok) return;
 
   const id = normalizeId(newId.value);
   if (!id) { setHint(newHint, "Ungültige ID. Erlaubt: a-z 0-9 _ -"); return; }
-
+  
+setHint(newHint, "Artikel angelegt.");
+newItemDialog.close();
   // Kategorie: Freitext hat Vorrang, sonst Select
   const cat = normalizeCategory(newCategoryFree.value) || normalizeCategory(newCategorySelect.value);
 
@@ -513,19 +515,22 @@ newItemBtn.addEventListener("click", async () => {
   newItemDialog.showModal();
 });
 
-createBtn.addEventListener("click", (e) => { e.preventDefault(); createItem(); });
-
-goHomeBtn.addEventListener("click", () => setRoute("#/"));
-backBtn.addEventListener("click", () => setRoute("#/"));
-
-saveMetaBtn.addEventListener("click", () => saveMeta());
-
-document.querySelectorAll("[data-delta]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const d = parseInt(btn.getAttribute("data-delta"), 10);
-    adjust(d);
-  });
+newItemBtn.addEventListener("click", async () => {
+  setHint(newHint, "");
+  newCategoryFree.value = "";
+  await refreshCategoryLists();
+  newItemDialog.showModal();
 });
+
+cancelNewBtn.addEventListener("click", () => {
+  newItemDialog.close();
+});
+
+newItemForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await createItem(); // createItem schließt Dialog jetzt selbst nach Erfolg
+});
+
 
 // Upload Button robust
 uploadBtn.addEventListener("click", () => {
@@ -592,4 +597,5 @@ window.addEventListener("unhandledrejection", (e) => {
 
 const newItemForm = document.getElementById("newItemForm");
 const cancelNewBtn = document.getElementById("cancelNewBtn");
+
 
