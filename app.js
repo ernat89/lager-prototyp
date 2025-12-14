@@ -1,19 +1,22 @@
-// 1) HIER EINTRAGEN:
+// 1) HIER EINTRAGEN
 const SUPABASE_URL = "https://fiwatlffqgevxvmrsmvz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpd2F0bGZmcWdldnh2bXJzbXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2ODY1MDYsImV4cCI6MjA4MTI2MjUwNn0.5jQBokoo25GFMBWgluBLN5Yy_NitrvYas8Pyxsj8AZA";
-const EDIT_PIN = "81243";
+const EDIT_PIN = "81243"; // dein PIN
 
-// Supabase Client
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const PIN_STORAGE_KEY = "lager_edit_pin_ok";
 
 // Views
 const homeView = document.getElementById("homeView");
 const detailView = document.getElementById("detailView");
 const pageTitle = document.getElementById("pageTitle");
+const statusLine = document.getElementById("statusLine");
 
 // Home UI
 const itemsContainer = document.getElementById("itemsContainer");
 const emptyHint = document.getElementById("emptyHint");
+const homeMessage = document.getElementById("homeMessage");
 const searchInput = document.getElementById("searchInput");
 const categoryFilter = document.getElementById("categoryFilter");
 const newItemBtn = document.getElementById("newItemBtn");
@@ -37,10 +40,13 @@ const metaLine = document.getElementById("metaLine");
 const logsList = document.getElementById("logsList");
 const hint = document.getElementById("hint");
 const saveMetaBtn = document.getElementById("saveMetaBtn");
+const deleteBtn = document.getElementById("deleteBtn");
 const qrLink = document.getElementById("qrLink");
 
 // New item dialog
 const newItemDialog = document.getElementById("newItemDialog");
+const newItemForm = document.getElementById("newItemForm");
+const cancelNewBtn = document.getElementById("cancelNewBtn");
 const newId = document.getElementById("newId");
 const newName = document.getElementById("newName");
 const newCategorySelect = document.getElementById("newCategorySelect");
@@ -48,20 +54,35 @@ const newCategoryFree = document.getElementById("newCategoryFree");
 const newTarget = document.getElementById("newTarget");
 const newCurrent = document.getElementById("newCurrent");
 const newHint = document.getElementById("newHint");
-const createBtn = document.getElementById("createBtn");
 
 // PIN dialog
 const pinDialog = document.getElementById("pinDialog");
 const pinDialogInput = document.getElementById("pinDialogInput");
 const pinOkBtn = document.getElementById("pinOkBtn");
+const pinCancelBtn = document.getElementById("pinCancelBtn");
 const pinHint = document.getElementById("pinHint");
-
-const PIN_STORAGE_KEY = "lager_edit_pin_ok";
 
 let allItems = [];
 let currentItem = null;
 
+// ---------- Helpers ----------
 function setHint(el, msg) { el.textContent = msg || ""; }
+function showHomeMessage(msg) {
+  if (!msg) { homeMessage.style.display = "none"; homeMessage.textContent = ""; return; }
+  homeMessage.style.display = "block";
+  homeMessage.textContent = msg;
+}
+function setStatus(msg) { statusLine.textContent = msg || ""; }
+
+function escapeHtml(s){
+  return (s ?? "").toString()
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(s){ return escapeHtml(s); }
 
 function fmtDate(iso) {
   try { return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }); }
@@ -74,10 +95,23 @@ function statusFrom(target, current) {
   return { label: "OK", color: "var(--ok)" };
 }
 
+function normalizeId(raw) {
+  const s = (raw || "").trim().toLowerCase();
+  if (!s) return null;
+  if (!/^[a-z0-9_-]+$/.test(s)) return null;
+  return s;
+}
+function normalizeCategory(raw) {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  return s.slice(0, 40);
+}
+
 function showHome() {
   homeView.style.display = "block";
   detailView.style.display = "none";
   pageTitle.textContent = "Übersicht";
+  setHint(hint, "");
 }
 
 function showDetail() {
@@ -88,91 +122,93 @@ function showDetail() {
 function setRoute(hash) { window.location.hash = hash; }
 function getRoute() { return window.location.hash || "#/"; }
 
+// ---------- PIN ----------
 async function ensurePin() {
   const ok = localStorage.getItem(PIN_STORAGE_KEY) === "1";
   if (ok) return true;
 
-  pinDialogInput.value = "";
   setHint(pinHint, "");
+  pinDialogInput.value = "";
   pinDialog.showModal();
 
   return await new Promise((resolve) => {
-    const onOk = (e) => {
-      e.preventDefault();
+    const onOk = () => {
       const p = (pinDialogInput.value || "").trim();
-      if (p !== EDIT_PIN) {
-        setHint(pinHint, "Falsche PIN.");
-        return;
-      }
+      if (p !== EDIT_PIN) { setHint(pinHint, "Falsche PIN."); return; }
       localStorage.setItem(PIN_STORAGE_KEY, "1");
-      pinDialog.close();
       cleanup();
+      pinDialog.close();
       resolve(true);
     };
-
-    const onClose = () => {
+    const onCancel = () => {
       cleanup();
-      resolve(localStorage.getItem(PIN_STORAGE_KEY) === "1");
+      pinDialog.close();
+      resolve(false);
     };
-
     function cleanup() {
       pinOkBtn.removeEventListener("click", onOk);
-      pinDialog.removeEventListener("close", onClose);
+      pinCancelBtn.removeEventListener("click", onCancel);
     }
-
     pinOkBtn.addEventListener("click", onOk);
-    pinDialog.addEventListener("close", onClose);
+    pinCancelBtn.addEventListener("click", onCancel);
   });
 }
 
-function normalizeId(raw) {
-  const s = (raw || "").trim().toLowerCase();
-  if (!s) return null;
-  if (!/^[a-z0-9_-]+$/.test(s)) return null;
-  return s;
-}
-
-function normalizeCategory(raw) {
-  const s = (raw || "").trim();
-  if (!s) return null;
-  return s.slice(0, 40);
-}
-
-async function loadItems() {
-  const { data, error } = await supabase
-    .from("items")
-    .select("id,name,category,target_qty,current_qty,image_url,created_at,updated_at,last_actor")
-    .order("updated_at", { ascending: false });
-
-  if (error) {
-    itemsContainer.innerHTML = `<div class="muted">Fehler: ${escapeHtml(error.message)}</div>`;
-    return;
+function requireActor() {
+  const actor = (actorInput.value || "").trim();
+  if (actor.length < 2) {
+    setHint(hint, "Bitte 'Wer war das?' ausfüllen (mind. 2 Zeichen).");
+    actorInput.focus();
+    return null;
   }
-
-  allItems = data || [];
-  await refreshCategoryLists();
-  renderItems();
+  return actor;
 }
 
+function clearActor() {
+  actorInput.value = "";
+}
+
+// ---------- Data ----------
 async function refreshCategoryLists() {
-  // Distinct Kategorien aus Items ableiten
   const cats = Array.from(new Set(
     (allItems || [])
       .map(x => (x.category || "").trim())
       .filter(Boolean)
   )).sort((a,b) => a.localeCompare(b, "de"));
 
-  // Filter Dropdown
   const current = categoryFilter.value || "";
   categoryFilter.innerHTML = `<option value="">Alle Kategorien</option>` + cats.map(c =>
     `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`
   ).join("");
   categoryFilter.value = cats.includes(current) ? current : "";
 
-  // New-item dropdown
   newCategorySelect.innerHTML = `<option value="">Kategorie wählen…</option>` + cats.map(c =>
     `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`
   ).join("");
+}
+
+async function loadItems() {
+  showHomeMessage(null);
+  itemsContainer.innerHTML = `<div class="muted">Lade Daten …</div>`;
+  emptyHint.style.display = "none";
+
+  const { data, error } = await supabase
+    .from("items")
+    .select("id,name,category,target_qty,current_qty,image_url,created_at,updated_at,deleted_at")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    itemsContainer.innerHTML = "";
+    showHomeMessage(`Fehler beim Laden: ${error.message}`);
+    setStatus("Supabase nicht erreichbar oder blockiert.");
+    return;
+  }
+
+  setStatus(`Aktualisiert: ${new Date().toLocaleTimeString("de-DE")}`);
+  allItems = data || [];
+  await refreshCategoryLists();
+  renderItems();
 }
 
 function renderItems() {
@@ -188,19 +224,14 @@ function renderItems() {
   itemsContainer.innerHTML = "";
   emptyHint.style.display = items.length === 0 ? "block" : "none";
 
-  // Gruppierung nach Kategorie (Kaffee, Tee, etc.) – uncategorized als "Ohne Kategorie"
   const groups = new Map();
   for (const it of items) {
-    const k = (it.category || "").trim() || "Ohne Kategorie";
+    const k = (it.category || "").trim() || "Allgemein";
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(it);
   }
 
-  const groupNames = Array.from(groups.keys()).sort((a,b) => {
-    if (a === "Ohne Kategorie") return 1;
-    if (b === "Ohne Kategorie") return -1;
-    return a.localeCompare(b, "de");
-  });
+  const groupNames = Array.from(groups.keys()).sort((a,b) => a.localeCompare(b, "de"));
 
   for (const g of groupNames) {
     const title = document.createElement("div");
@@ -240,8 +271,7 @@ function renderItems() {
       const sub = document.createElement("div");
       sub.className = "muted small";
       sub.style.marginTop = "8px";
-      const last = it.last_actor ? `${it.last_actor}, ` : "";
-      sub.textContent = `Zuletzt: ${last}${fmtDate(it.updated_at)}`;
+      sub.textContent = `Zuletzt: ${fmtDate(it.updated_at)}`;
 
       main.appendChild(name);
       main.appendChild(meta);
@@ -258,15 +288,18 @@ function renderItems() {
 
 async function loadItem(id) {
   setHint(hint, "");
+  clearActor();
 
   const { data: item, error } = await supabase
     .from("items")
     .select("*")
     .eq("id", id)
+    .is("deleted_at", null)
     .single();
 
   if (error) {
-    setHint(hint, `Artikel nicht gefunden: ${error.message}`);
+    showHome();
+    showHomeMessage(`Artikel nicht gefunden oder nicht ladbar: ${error.message}`);
     return;
   }
 
@@ -292,8 +325,7 @@ function renderItem(item) {
 
   const created = fmtDate(item.created_at);
   const updated = fmtDate(item.updated_at);
-  const lastActor = item.last_actor ? ` von ${item.last_actor}` : "";
-  metaLine.textContent = `Angelegt: ${created} | Letzte Änderung: ${updated}${lastActor}`;
+  metaLine.textContent = `Angelegt: ${created} | Letzte Änderung: ${updated}`;
 
   if (item.image_url) {
     detailImg.src = item.image_url;
@@ -306,12 +338,14 @@ function renderItem(item) {
 
   const fullLink = `${window.location.origin}${window.location.pathname}#/item/${encodeURIComponent(item.id)}`;
   qrLink.textContent = fullLink;
+
+  clearActor();
 }
 
 async function loadLogs(itemId) {
   const { data, error } = await supabase
     .from("logs")
-    .select("actor, delta, created_at")
+    .select("actor, delta, action, created_at")
     .eq("item_id", itemId)
     .order("id", { ascending: false })
     .limit(25);
@@ -333,7 +367,7 @@ async function loadLogs(itemId) {
     const delta = l.delta > 0 ? `+${l.delta}` : `${l.delta}`;
     row.innerHTML = `
       <div class="logLeft">
-        <div><strong>${escapeHtml(l.actor)}</strong></div>
+        <div><strong>${escapeHtml(l.actor)}</strong> <span class="muted small">(${escapeHtml(l.action || "adjust")})</span></div>
         <div class="muted small">${fmtDate(l.created_at)}</div>
       </div>
       <div style="font-weight:1000;white-space:nowrap;">${escapeHtml(delta)}</div>
@@ -342,16 +376,7 @@ async function loadLogs(itemId) {
   }
 }
 
-function requireActor() {
-  const actor = (actorInput.value || "").trim();
-  if (actor.length < 2) {
-    setHint(hint, "Bitte 'Wer war das?' ausfüllen (mind. 2 Zeichen).");
-    actorInput.focus();
-    return null;
-  }
-  return actor;
-}
-
+// ---------- Actions ----------
 async function adjust(delta) {
   setHint(hint, "");
   const ok = await ensurePin();
@@ -359,7 +384,6 @@ async function adjust(delta) {
 
   const actor = requireActor();
   if (!actor) return;
-
   if (!currentItem) return;
 
   const newQty = Math.max(0, (currentItem.current_qty ?? 0) + delta);
@@ -373,13 +397,14 @@ async function adjust(delta) {
 
   const { error: logErr } = await supabase
     .from("logs")
-    .insert({ item_id: currentItem.id, actor, delta });
+    .insert({ item_id: currentItem.id, actor, delta, action: "adjust" });
 
   if (logErr) { setHint(hint, `Log-Fehler: ${logErr.message}`); return; }
 
   await loadItem(currentItem.id);
-  await loadItems(); // Übersicht aktuell halten
+  await loadItems();
   setHint(hint, "Gespeichert.");
+  clearActor();
   setTimeout(() => setHint(hint, ""), 1000);
 }
 
@@ -390,13 +415,12 @@ async function saveMeta() {
 
   const actor = requireActor();
   if (!actor) return;
-
   if (!currentItem) return;
 
   const name = (nameInput.value || "").trim().slice(0, 80) || currentItem.name;
   const target = parseInt(targetInput.value, 10);
   const safeTarget = Number.isFinite(target) ? Math.max(0, target) : 0;
-  const cat = normalizeCategory(categoryInput.value);
+  const cat = normalizeCategory(categoryInput.value) || "Allgemein";
 
   const { error } = await supabase
     .from("items")
@@ -405,9 +429,16 @@ async function saveMeta() {
 
   if (error) { setHint(hint, `Fehler: ${error.message}`); return; }
 
+  const { error: logErr } = await supabase
+    .from("logs")
+    .insert({ item_id: currentItem.id, actor, delta: 0, action: "meta" });
+
+  if (logErr) { setHint(hint, `Log-Fehler: ${logErr.message}`); return; }
+
   await loadItem(currentItem.id);
   await loadItems();
   setHint(hint, "Gespeichert.");
+  clearActor();
   setTimeout(() => setHint(hint, ""), 1000);
 }
 
@@ -418,19 +449,12 @@ async function uploadImage(file) {
 
   const actor = requireActor();
   if (!actor) return;
-
-  if (!currentItem || !file) {
-  setHint(hint, "Bitte zuerst einen Artikel öffnen.");
-  toast("Bitte zuerst einen Artikel öffnen.");
-  return;
-}
+  if (!currentItem || !file) { setHint(hint, "Bitte zuerst einen Artikel öffnen."); return; }
 
   setHint(hint, "Upload läuft …");
-toast("Upload läuft …");
-toast("Bild gespeichert.");
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const safeExt = ["jpg","jpeg","png","webp"].includes(ext) ? ext : "jpg";
+  const safeExt = ["jpg","jpeg","png","webp","heic"].includes(ext) ? ext : "jpg";
   const filePath = `${currentItem.id}/${Date.now()}.${safeExt}`;
 
   const { error: upErr } = await supabase.storage
@@ -449,51 +473,86 @@ toast("Bild gespeichert.");
 
   if (dbErr) { setHint(hint, `DB-Fehler: ${dbErr.message}`); return; }
 
+  const { error: logErr } = await supabase
+    .from("logs")
+    .insert({ item_id: currentItem.id, actor, delta: 0, action: "upload" });
+
+  if (logErr) { setHint(hint, `Log-Fehler: ${logErr.message}`); return; }
+
   await loadItem(currentItem.id);
   await loadItems();
   setHint(hint, "Bild gespeichert.");
+  clearActor();
   setTimeout(() => setHint(hint, ""), 1200);
 }
 
-async function createItem() {
-  setHint(newHint, "Prüfe Eingaben …");
+async function softDeleteItem() {
+  setHint(hint, "");
   const ok = await ensurePin();
   if (!ok) return;
 
+  const actor = requireActor();
+  if (!actor) return;
+  if (!currentItem) return;
+
+  const confirmText = `Artikel wirklich löschen?\n\n${currentItem.name} (${currentItem.id})\n\nHinweis: Wird nur ausgeblendet (soft delete).`;
+  if (!window.confirm(confirmText)) return;
+
+  const { error } = await supabase
+    .from("items")
+    .update({ deleted_at: new Date().toISOString(), last_actor: actor })
+    .eq("id", currentItem.id);
+
+  if (error) { setHint(hint, `Fehler: ${error.message}`); return; }
+
+  const { error: logErr } = await supabase
+    .from("logs")
+    .insert({ item_id: currentItem.id, actor, delta: 0, action: "delete" });
+
+  if (logErr) { setHint(hint, `Log-Fehler: ${logErr.message}`); return; }
+
+  clearActor();
+  setRoute("#/");
+  await loadItems();
+}
+
+// ---------- Create Item ----------
+async function createItem() {
+  setHint(newHint, "Prüfe Eingaben …");
+  const ok = await ensurePin();
+  if (!ok) { setHint(newHint, "PIN abgebrochen."); return; }
+
   const id = normalizeId(newId.value);
   if (!id) { setHint(newHint, "Ungültige ID. Erlaubt: a-z 0-9 _ -"); return; }
-  
-setHint(newHint, "Artikel angelegt.");
-newItemDialog.close();
-  // Kategorie: Freitext hat Vorrang, sonst Select
-  const cat = normalizeCategory(newCategoryFree.value) || normalizeCategory(newCategorySelect.value);
 
   const name = (newName.value || "").trim().slice(0,80) || id;
+
+  const cat = normalizeCategory(newCategoryFree.value) || normalizeCategory(newCategorySelect.value) || "Allgemein";
   const t = parseInt(newTarget.value, 10);
   const c = parseInt(newCurrent.value, 10);
 
   const target_qty = Number.isFinite(t) ? Math.max(0, t) : 0;
   const current_qty = Number.isFinite(c) ? Math.max(0, c) : 0;
 
-  // ID existiert schon?
-  const { data: existing } = await supabase
+  // existiert ID?
+  const { data: existing, error: exErr } = await supabase
     .from("items")
     .select("id")
     .eq("id", id)
     .maybeSingle();
 
-  if (existing) {
-    setHint(newHint, "Diese ID existiert bereits. Nimm eine andere, z.B. kaffee_dekaf.");
-    return;
-  }
+  if (exErr) { setHint(newHint, `Fehler: ${exErr.message}`); return; }
+  if (existing) { setHint(newHint, "Diese ID existiert bereits."); return; }
 
   const { error } = await supabase
     .from("items")
-    .insert({ id, name, target_qty, current_qty, category: cat });
+    .insert({ id, name, category: cat, target_qty, current_qty });
 
   if (error) { setHint(newHint, `Fehler: ${error.message}`); return; }
 
+  setHint(newHint, "Artikel angelegt.");
   newItemDialog.close();
+
   newId.value = "";
   newName.value = "";
   newCategoryFree.value = "";
@@ -504,7 +563,7 @@ newItemDialog.close();
   setRoute(`#/item/${encodeURIComponent(id)}`);
 }
 
-// Events
+// ---------- Events ----------
 searchInput.addEventListener("input", renderItems);
 categoryFilter.addEventListener("change", renderItems);
 
@@ -514,32 +573,42 @@ newItemBtn.addEventListener("click", async () => {
   await refreshCategoryLists();
   newItemDialog.showModal();
 });
-
-newItemBtn.addEventListener("click", async () => {
-  setHint(newHint, "");
-  newCategoryFree.value = "";
-  await refreshCategoryLists();
-  newItemDialog.showModal();
-});
-
-cancelNewBtn.addEventListener("click", () => {
-  newItemDialog.close();
-});
-
+cancelNewBtn.addEventListener("click", () => newItemDialog.close());
 newItemForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  await createItem(); // createItem schließt Dialog jetzt selbst nach Erfolg
+  await createItem();
 });
 
+goHomeBtn.addEventListener("click", () => setRoute("#/"));
+backBtn.addEventListener("click", () => setRoute("#/"));
 
-// Upload Button robust
+saveMetaBtn.addEventListener("click", () => saveMeta());
+deleteBtn.addEventListener("click", () => softDeleteItem());
+
+document.querySelectorAll("[data-delta]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const d = parseInt(btn.getAttribute("data-delta"), 10);
+    adjust(d);
+  });
+});
+
 uploadBtn.addEventListener("click", () => {
   imageFile.value = "";
   imageFile.click();
 });
-
 imageFile.addEventListener("change", async () => {
-// Routing
+  const f = imageFile.files?.[0];
+  if (!f) return;
+  await uploadImage(f);
+});
+
+// Auto-Reload wenn du zurückkommst (40min Problem)
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) handleRoute();
+});
+window.addEventListener("focus", () => handleRoute());
+
+// ---------- Routing ----------
 async function handleRoute() {
   const r = getRoute();
   if (r.startsWith("#/item/")) {
@@ -553,49 +622,4 @@ async function handleRoute() {
 
 window.addEventListener("hashchange", handleRoute);
 handleRoute();
-
-// Helpers
-function escapeHtml(s){
-  return (s ?? "").toString()
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function escapeAttr(s){ return escapeHtml(s); }
-
-function toast(msg) {
-  let el = document.getElementById("toast");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "toast";
-    el.style.position = "fixed";
-    el.style.left = "16px";
-    el.style.right = "16px";
-    el.style.bottom = "16px";
-    el.style.padding = "12px 14px";
-    el.style.borderRadius = "14px";
-    el.style.background = "#111827";
-    el.style.color = "#fff";
-    el.style.boxShadow = "0 10px 28px rgba(0,0,0,0.25)";
-    el.style.zIndex = "9999";
-    el.style.display = "none";
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.style.display = "block";
-  clearTimeout(el._t);
-  el._t = setTimeout(() => { el.style.display = "none"; }, 2500);
-}
-window.addEventListener("error", (e) => {
-  toast("JS-Fehler: " + (e.message || "unbekannt"));
-});
-window.addEventListener("unhandledrejection", (e) => {
-  toast("Promise-Fehler: " + (e.reason?.message || e.reason || "unbekannt"));
-});
-
-const newItemForm = document.getElementById("newItemForm");
-const cancelNewBtn = document.getElementById("cancelNewBtn");
-
 
