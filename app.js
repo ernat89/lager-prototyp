@@ -93,6 +93,15 @@ let currentItem = null;
 function setHint(el, msg) { el.textContent = msg || ""; }
 function setStatus(msg) { statusLine.textContent = msg || ""; }
 
+setStatus("app.js geladen ✓");
+window.addEventListener("error", (e) => {
+  setStatus("JS Fehler: " + (e?.message || "unknown"));
+});
+window.addEventListener("unhandledrejection", (e) => {
+  setStatus("Promise Fehler: " + (e?.reason?.message || e?.reason || "unknown"));
+});
+
+
 function showMessage(el, msg) {
   if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
   el.style.display = "block";
@@ -895,12 +904,28 @@ searchInput.addEventListener("keydown", (e) => {
 });
 categoryFilter.addEventListener("change", renderItems);
 
-newItemBtn.addEventListener
-cancelNewBtn.addEventListener("click", () => newItemDialog.close());
-newItemForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  await createItem();
-});
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("#newItemBtn");
+  if (!btn) return;
+
+  // UI Feedback statt Console
+  setStatus("+ Artikel geklickt …");
+
+  // Kategorien vorbereiten
+  setHint(newHint, "");
+  newCategoryFree.value = "";
+  clearNewActor();
+  await refreshCategoryLists();
+
+  // Dialog öffnen
+  try {
+    newItemDialog.showModal();
+    setStatus("Neuer Artikel: Dialog offen ✓");
+  } catch (err) {
+    setStatus("Dialog Fehler: " + (err?.message || "unknown"));
+  }
+}, true);
+
 
 goHomeBtn.addEventListener("click", () => setRoute("#/"));
 backBtn.addEventListener("click", () => setRoute("#/"));
@@ -943,6 +968,8 @@ imagePicker.addEventListener("change", async () => {
 // Auto reload bei Rückkehr
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) handleRoute();
+  if (!newItemDialog) setStatus("Fehler: newItemDialog nicht gefunden");
+
 });
 window.addEventListener("focus", () => handleRoute());
 
@@ -968,5 +995,6 @@ async function handleRoute() {
 
 window.addEventListener("hashchange", handleRoute);
 handleRoute();
+
 
 
