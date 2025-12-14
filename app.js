@@ -469,3 +469,28 @@ imageFile.addEventListener("change", () => {
 window.addEventListener("hashchange", handleRoute);
 handleRoute();
 
+const uploadBtn = document.getElementById("uploadBtn");
+const imageFile = document.getElementById("imageFile");
+
+uploadBtn.addEventListener("click", async () => {
+  // Optional: PIN erst beim Upload verlangen
+  // Wenn du noch kein PIN-System hast, lass diese zwei Zeilen weg
+  // const ok = await ensurePin(); if (!ok) return;
+
+  imageFile.value = "";       // wichtig, sonst feuert change bei gleicher Datei manchmal nicht
+  imageFile.click();          // öffnet zuverlässig den Dialog
+});
+
+imageFile.addEventListener("change", async () => {
+  const f = imageFile.files && imageFile.files[0];
+  if (!f) return;
+
+  setHint(hint, "Upload läuft …");
+
+  try {
+    await uploadImage(f);     // deine bestehende Upload-Funktion
+  } catch (e) {
+    setHint(hint, "Upload-Fehler (JS): " + (e?.message || e));
+  }
+});
+
