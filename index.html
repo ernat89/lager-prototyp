@@ -11,6 +11,7 @@
     <div class="brand">
       <div class="kicker">Lager</div>
       <div class="title" id="pageTitle">Übersicht</div>
+      <div class="sub" id="statusLine"></div>
     </div>
 
     <div class="topActions">
@@ -24,17 +25,14 @@
     <section id="homeView" class="view">
       <div class="toolbar">
         <input id="searchInput" class="input" placeholder="Suchen: Kaffee, Milch, Filter …" />
-
         <select id="categoryFilter" class="select">
           <option value="">Alle Kategorien</option>
         </select>
       </div>
 
+      <div id="homeMessage" class="card muted" style="display:none;"></div>
       <div id="itemsContainer"></div>
-
-      <div class="muted" id="emptyHint" style="display:none;">
-        Noch keine Artikel. Klicke auf “+ Artikel”.
-      </div>
+      <div class="muted" id="emptyHint" style="display:none;">Noch keine Artikel. Klicke auf “+ Artikel”.</div>
     </section>
 
     <!-- DETAIL -->
@@ -51,8 +49,8 @@
             <div id="detailImgPlaceholder" class="imgPlaceholder">Kein Bild</div>
           </div>
 
-          <button class="btn secondary" id="uploadBtn" type="button">Bild hochladen</button>
-          <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+          <button class="btn secondary" id="uploadBtn" type="button">Bild oder Foto hinzufügen</button>
+          <input id="imageFile" type="file" accept="image/*" capture="environment" hidden />
         </div>
 
         <div class="detailInfo">
@@ -85,7 +83,8 @@
           <div class="card inner">
             <div class="row">
               <label>Wer war das? (Pflicht)</label>
-              <input id="actorInput" class="input" placeholder="z.B. Eren, Max, Schicht 2" />
+              <input id="actorInput" class="input" placeholder="Name eintippen" />
+              <div class="muted small">Muss bei jeder Aktion manuell eingetragen werden.</div>
             </div>
 
             <div class="actions">
@@ -97,6 +96,10 @@
 
             <div class="saveRow">
               <button class="btn" id="saveMetaBtn" type="button">Name, Kategorie, Soll speichern</button>
+            </div>
+
+            <div class="dangerRow">
+              <button class="btn danger" id="deleteBtn" type="button">Artikel löschen</button>
             </div>
 
             <div class="hint" id="hint"></div>
@@ -118,55 +121,54 @@
   </main>
 
   <!-- NEW ITEM DIALOG -->
-<dialog id="newItemDialog" class="dialog">
-  <form id="newItemForm" class="dialogBody">
-    <div class="dialogTitle">Neuen Artikel anlegen</div>
+  <dialog id="newItemDialog" class="dialog">
+    <form id="newItemForm" class="dialogBody">
+      <div class="dialogTitle">Neuen Artikel anlegen</div>
 
-    <div class="row">
-      <label>ID (für QR, z.B. kaffee_dekaf_1kg)</label>
-      <input id="newId" class="input" placeholder="nur a-z 0-9 _ -" />
-      <div class="muted small">Tipp: ID muss eindeutig sein.</div>
-    </div>
-
-    <div class="row">
-      <label>Name</label>
-      <input id="newName" class="input" placeholder="Kaffee De-Kaf" />
-    </div>
-
-    <div class="row">
-      <label>Kategorie</label>
-      <div class="twoInline">
-        <select id="newCategorySelect" class="select">
-          <option value="">Kategorie wählen…</option>
-        </select>
-        <input id="newCategoryFree" class="input" placeholder="oder neu eintippen" maxlength="40" />
-      </div>
-    </div>
-
-    <div class="twoCol">
       <div class="row">
-        <label>Soll</label>
-        <input id="newTarget" class="input" type="number" min="0" step="1" value="10" />
+        <label>ID (für QR, z.B. kaffee_dekaf_1kg)</label>
+        <input id="newId" class="input" placeholder="nur a-z 0-9 _ -" />
+        <div class="muted small">ID muss eindeutig sein.</div>
       </div>
+
       <div class="row">
-        <label>Ist</label>
-        <input id="newCurrent" class="input" type="number" min="0" step="1" value="0" />
+        <label>Name</label>
+        <input id="newName" class="input" placeholder="Kaffee De-Kaf" />
       </div>
-    </div>
 
-    <div class="hint" id="newHint"></div>
+      <div class="row">
+        <label>Kategorie</label>
+        <div class="twoInline">
+          <select id="newCategorySelect" class="select">
+            <option value="">Kategorie wählen…</option>
+          </select>
+          <input id="newCategoryFree" class="input" placeholder="oder neu eintippen" maxlength="40" />
+        </div>
+      </div>
 
-    <div class="dialogActions">
-      <button class="btn ghost" id="cancelNewBtn" type="button">Abbrechen</button>
-      <button class="btn" id="createBtn" type="submit">Anlegen</button>
-    </div>
-  </form>
-</dialog>
+      <div class="twoCol">
+        <div class="row">
+          <label>Soll</label>
+          <input id="newTarget" class="input" type="number" min="0" step="1" value="10" />
+        </div>
+        <div class="row">
+          <label>Ist</label>
+          <input id="newCurrent" class="input" type="number" min="0" step="1" value="0" />
+        </div>
+      </div>
 
+      <div class="hint" id="newHint"></div>
+
+      <div class="dialogActions">
+        <button class="btn ghost" id="cancelNewBtn" type="button">Abbrechen</button>
+        <button class="btn" id="createBtn" type="submit">Anlegen</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- PIN DIALOG -->
   <dialog id="pinDialog" class="dialog">
-    <form method="dialog" class="dialogBody">
+    <form class="dialogBody">
       <div class="dialogTitle">PIN erforderlich</div>
       <div class="muted small" style="margin-bottom:10px;">
         Für Änderungen bitte PIN eingeben. Danach musst du sie nicht ständig neu tippen.
@@ -174,14 +176,14 @@
 
       <div class="row">
         <label>PIN</label>
-        <input id="pinDialogInput" class="input" inputmode="numeric" placeholder="z.B. 1234" />
+        <input id="pinDialogInput" class="input" inputmode="numeric" placeholder="PIN" />
       </div>
 
       <div class="hint" id="pinHint"></div>
 
       <div class="dialogActions">
-        <button class="btn ghost" value="cancel">Abbrechen</button>
-        <button class="btn" id="pinOkBtn" value="default">OK</button>
+        <button class="btn ghost" id="pinCancelBtn" type="button">Abbrechen</button>
+        <button class="btn" id="pinOkBtn" type="button">OK</button>
       </div>
     </form>
   </dialog>
@@ -190,5 +192,3 @@
   <script src="./app.js"></script>
 </body>
 </html>
-
-
