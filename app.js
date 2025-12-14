@@ -1,11 +1,8 @@
 // 1) HIER EINTRAGEN:
 const SUPABASE_URL = "https://fiwatlffqgevxvmrsmvz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpd2F0bGZmcWdldnh2bXJzbXZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2ODY1MDYsImV4cCI6MjA4MTI2MjUwNn0.5jQBokoo25GFMBWgluBLN5Yy_NitrvYas8Pyxsj8AZA";
-
-// 2) Prototyp-PIN (später pro Kunde konfigurierbar)
 const EDIT_PIN = "4711";
 
-// Supabase Client
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Views
@@ -17,7 +14,6 @@ const pageTitle = document.getElementById("pageTitle");
 const itemsGrid = document.getElementById("itemsGrid");
 const emptyHint = document.getElementById("emptyHint");
 const searchInput = document.getElementById("searchInput");
-const pinInput = document.getElementById("pinInput");
 const newItemBtn = document.getElementById("newItemBtn");
 const goHomeBtn = document.getElementById("goHomeBtn");
 
@@ -47,24 +43,22 @@ const newCurrent = document.getElementById("newCurrent");
 const newHint = document.getElementById("newHint");
 const createBtn = document.getElementById("createBtn");
 
+// PIN dialog
+const pinDialog = document.getElementById("pinDialog");
+const pinDialogInput = document.getElementById("pinDialogInput");
+const pinOkBtn = document.getElementById("pinOkBtn");
+const pinHint = document.getElementById("pinHint");
+
 let allItems = [];
 let currentItem = null;
 
-function isPinValid() {
-  const p = (pinInput.value || "").trim();
-  return p === EDIT_PIN;
-}
+const PIN_STORAGE_KEY = "lager_edit_pin_ok";
 
-function setHint(el, msg) {
-  el.textContent = msg || "";
-}
+function setHint(el, msg) { el.textContent = msg || ""; }
 
 function fmtDate(iso) {
-  try {
-    return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
-  } catch {
-    return iso;
-  }
+  try { return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }); }
+  catch { return iso; }
 }
 
 function statusFrom(target, current) {
@@ -84,13 +78,45 @@ function showDetail() {
   detailView.style.display = "block";
 }
 
-function setRoute(hash) {
-  window.location.hash = hash;
-}
+function setRoute(hash) { window.location.hash = hash; }
+function getRoute() { return window.location.hash || "#/"; }
 
-function getRoute() {
-  const h = window.location.hash || "#/";
-  return h;
+// PIN nur bei Schreibaktionen
+async function ensurePin() {
+  const ok = localStorage.getItem(PIN_STORAGE_KEY) === "1";
+  if (ok) return true;
+
+  pinDialogInput.value = "";
+  setHint(pinHint, "");
+  pinDialog.showModal();
+
+  return await new Promise((resolve) => {
+    const onOk = (e) => {
+      e.preventDefault();
+      const p = (pinDialogInput.value || "").trim();
+      if (p !== EDIT_PIN) {
+        setHint(pinHint, "Falsche PIN.");
+        return;
+      }
+      localStorage.setItem(PIN_STORAGE_KEY, "1");
+      pinDialog.close();
+      cleanup();
+      resolve(true);
+    };
+
+    const onClose = () => {
+      cleanup();
+      resolve(localStorage.getItem(PIN_STORAGE_KEY) === "1");
+    };
+
+    function cleanup() {
+      pinOkBtn.removeEventListener("click", onOk);
+      pinDialog.removeEventListener("close", onClose);
+    }
+
+    pinOkBtn.addEventListener("click", onOk);
+    pinDialog.addEventListener("close", onClose);
+  });
 }
 
 async function loadItems() {
@@ -127,11 +153,8 @@ function renderItems() {
 
     const thumb = document.createElement("div");
     thumb.className = "thumb";
-    if (it.image_url) {
-      thumb.innerHTML = `<img src="${escapeAttr(it.image_url)}" alt="Bild">`;
-    } else {
-      thumb.textContent = "Kein Bild";
-    }
+    if (it.image_url) thumb.innerHTML = `<img src="${escapeAttr(it.image_url)}" alt="Bild">`;
+    else thumb.textContent = "Kein Bild";
 
     const main = document.createElement("div");
     main.className = "itemMain";
@@ -144,9 +167,7 @@ function renderItems() {
     meta.className = "itemMeta";
     meta.innerHTML = `
       <div><strong>${it.current_qty}</strong> / ${it.target_qty}</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <span class="pill" style="border-color:${st.color};color:${st.color};">${st.label}</span>
-      </div>
+      <div class="pill" style="border-color:${st.color};color:${st.color};">${st.label}</div>
     `;
 
     const sub = document.createElement("div");
@@ -229,17 +250,13 @@ async function loadLogs(itemId) {
     return;
   }
 
-  renderLogs(data || []);
-}
-
-function renderLogs(logs) {
   logsList.innerHTML = "";
-  if (!logs.length) {
+  if (!data?.length) {
     logsList.innerHTML = `<div class="muted">Noch keine Änderungen.</div>`;
     return;
   }
 
-  for (const l of logs) {
+  for (const l of data) {
     const row = document.createElement("div");
     row.className = "logRow";
     const delta = l.delta > 0 ? `+${l.delta}` : `${l.delta}`;
@@ -248,7 +265,7 @@ function renderLogs(logs) {
         <div><strong>${escapeHtml(l.actor)}</strong></div>
         <div class="muted small">${fmtDate(l.created_at)}</div>
       </div>
-      <div style="font-weight:900;white-space:nowrap;">${escapeHtml(delta)}</div>
+      <div style="font-weight:1000;white-space:nowrap;">${escapeHtml(delta)}</div>
     `;
     logsList.appendChild(row);
   }
@@ -257,11 +274,8 @@ function renderLogs(logs) {
 async function adjust(delta) {
   setHint(hint, "");
 
-  if (!isPinValid()) {
-    setHint(hint, "Falsche PIN. Änderungen sind gesperrt.");
-    pinInput.focus();
-    return;
-  }
+  const ok = await ensurePin();
+  if (!ok) return;
 
   const actor = (actorInput.value || "").trim();
   if (actor.length < 2) {
@@ -274,35 +288,19 @@ async function adjust(delta) {
 
   const newQty = Math.max(0, (currentItem.current_qty ?? 0) + delta);
 
-  // 1) Item updaten
   const { error: upErr } = await supabase
     .from("items")
-    .update({
-      current_qty: newQty,
-      last_actor: actor
-    })
+    .update({ current_qty: newQty, last_actor: actor })
     .eq("id", currentItem.id);
 
-  if (upErr) {
-    setHint(hint, `Fehler: ${upErr.message}`);
-    return;
-  }
+  if (upErr) { setHint(hint, `Fehler: ${upErr.message}`); return; }
 
-  // 2) Log schreiben
   const { error: logErr } = await supabase
     .from("logs")
-    .insert({
-      item_id: currentItem.id,
-      actor,
-      delta
-    });
+    .insert({ item_id: currentItem.id, actor, delta });
 
-  if (logErr) {
-    setHint(hint, `Log-Fehler: ${logErr.message}`);
-    return;
-  }
+  if (logErr) { setHint(hint, `Log-Fehler: ${logErr.message}`); return; }
 
-  // Refresh
   await loadItem(currentItem.id);
   setHint(hint, "Gespeichert.");
   setTimeout(() => setHint(hint, ""), 1200);
@@ -311,11 +309,8 @@ async function adjust(delta) {
 async function saveMeta() {
   setHint(hint, "");
 
-  if (!isPinValid()) {
-    setHint(hint, "Falsche PIN. Änderungen sind gesperrt.");
-    pinInput.focus();
-    return;
-  }
+  const ok = await ensurePin();
+  if (!ok) return;
 
   const actor = (actorInput.value || "").trim();
   if (actor.length < 2) {
@@ -332,17 +327,10 @@ async function saveMeta() {
 
   const { error } = await supabase
     .from("items")
-    .update({
-      name: name || currentItem.name,
-      target_qty: safeTarget,
-      last_actor: actor
-    })
+    .update({ name: name || currentItem.name, target_qty: safeTarget, last_actor: actor })
     .eq("id", currentItem.id);
 
-  if (error) {
-    setHint(hint, `Fehler: ${error.message}`);
-    return;
-  }
+  if (error) { setHint(hint, `Fehler: ${error.message}`); return; }
 
   await loadItem(currentItem.id);
   setHint(hint, "Stammdaten gespeichert.");
@@ -352,11 +340,8 @@ async function saveMeta() {
 async function uploadImage(file) {
   setHint(hint, "");
 
-  if (!isPinValid()) {
-    setHint(hint, "Falsche PIN. Änderungen sind gesperrt.");
-    pinInput.focus();
-    return;
-  }
+  const ok = await ensurePin();
+  if (!ok) return;
 
   const actor = (actorInput.value || "").trim();
   if (actor.length < 2) {
@@ -388,14 +373,47 @@ async function uploadImage(file) {
     .update({ image_url: publicUrl, last_actor: actor })
     .eq("id", currentItem.id);
 
-  if (dbErr) {
-    setHint(hint, `DB-Fehler: ${dbErr.message}`);
-    return;
-  }
+  if (dbErr) { setHint(hint, `DB-Fehler: ${dbErr.message}`); return; }
 
   await loadItem(currentItem.id);
   setHint(hint, "Bild aktualisiert.");
   setTimeout(() => setHint(hint, ""), 1200);
+}
+
+function normalizeId(raw) {
+  const s = (raw || "").trim().toLowerCase();
+  if (!s) return null;
+  if (!/^[a-z0-9_-]+$/.test(s)) return null;
+  return s;
+}
+
+async function createItem() {
+  setHint(newHint, "");
+
+  const ok = await ensurePin();
+  if (!ok) return;
+
+  const id = normalizeId(newId.value);
+  if (!id) { setHint(newHint, "Ungültige ID. Erlaubt: a-z 0-9 _ -"); return; }
+
+  const name = (newName.value || "").trim().slice(0,80) || id;
+  const t = parseInt(newTarget.value, 10);
+  const c = parseInt(newCurrent.value, 10);
+
+  const target_qty = Number.isFinite(t) ? Math.max(0, t) : 0;
+  const current_qty = Number.isFinite(c) ? Math.max(0, c) : 0;
+
+  const { error } = await supabase.from("items").insert({ id, name, target_qty, current_qty });
+  if (error) { setHint(newHint, `Fehler: ${error.message}`); return; }
+
+  newItemDialog.close();
+  newId.value = "";
+  newName.value = "";
+  newTarget.value = "10";
+  newCurrent.value = "0";
+
+  await loadItems();
+  setRoute(`#/item/${encodeURIComponent(id)}`);
 }
 
 function escapeHtml(s){
@@ -408,87 +426,33 @@ function escapeHtml(s){
 }
 function escapeAttr(s){ return escapeHtml(s); }
 
-// Routing
 async function handleRoute() {
   const r = getRoute();
-
   if (r.startsWith("#/item/")) {
     const id = decodeURIComponent(r.replace("#/item/", ""));
     await loadItem(id);
     return;
   }
-
   showHome();
   await loadItems();
-}
-
-// Create new item
-function normalizeId(raw) {
-  const s = (raw || "").trim().toLowerCase();
-  if (!s) return null;
-  if (!/^[a-z0-9_-]+$/.test(s)) return null;
-  return s;
-}
-
-async function createItem() {
-  setHint(newHint, "");
-
-  if (!isPinValid()) {
-    setHint(newHint, "Falsche PIN. Änderungen sind gesperrt.");
-    return;
-  }
-
-  const id = normalizeId(newId.value);
-  if (!id) {
-    setHint(newHint, "Ungültige ID. Erlaubt: a-z 0-9 _ -");
-    return;
-  }
-
-  const name = (newName.value || "").trim().slice(0,80) || id;
-  const t = parseInt(newTarget.value, 10);
-  const c = parseInt(newCurrent.value, 10);
-
-  const target_qty = Number.isFinite(t) ? Math.max(0, t) : 0;
-  const current_qty = Number.isFinite(c) ? Math.max(0, c) : 0;
-
-  const { error } = await supabase.from("items").insert({
-    id, name, target_qty, current_qty
-  });
-
-  if (error) {
-    setHint(newHint, `Fehler: ${error.message}`);
-    return;
-  }
-
-  newItemDialog.close();
-  newId.value = "";
-  newName.value = "";
-  newTarget.value = "10";
-  newCurrent.value = "0";
-  await loadItems();
-  setRoute(`#/item/${encodeURIComponent(id)}`);
 }
 
 // Events
 searchInput.addEventListener("input", renderItems);
 
-newItemBtn.addEventListener("click", () => {
-  newHint.textContent = "";
+newItemBtn.addEventListener("click", async () => {
+  setHint(newHint, "");
+  const ok = await ensurePin();
+  if (!ok) return;
   newItemDialog.showModal();
 });
 
-createBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  createItem();
-});
+createBtn.addEventListener("click", (e) => { e.preventDefault(); createItem(); });
 
 goHomeBtn.addEventListener("click", () => setRoute("#/"));
 backBtn.addEventListener("click", () => setRoute("#/"));
 
-saveMetaBtn.addEventListener("click", (e) => {
-  e.preventDefault();
-  saveMeta();
-});
+saveMetaBtn.addEventListener("click", (e) => { e.preventDefault(); saveMeta(); });
 
 document.querySelectorAll("[data-delta]").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -502,6 +466,6 @@ imageFile.addEventListener("change", () => {
   if (f) uploadImage(f);
 });
 
-// Start
 window.addEventListener("hashchange", handleRoute);
 handleRoute();
+
