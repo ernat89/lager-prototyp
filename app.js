@@ -419,9 +419,15 @@ async function uploadImage(file) {
   const actor = requireActor();
   if (!actor) return;
 
-  if (!currentItem || !file) return;
+  if (!currentItem || !file) {
+  setHint(hint, "Bitte zuerst einen Artikel öffnen.");
+  toast("Bitte zuerst einen Artikel öffnen.");
+  return;
+}
 
   setHint(hint, "Upload läuft …");
+toast("Upload läuft …");
+toast("Bild gespeichert.");
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const safeExt = ["jpg","jpeg","png","webp"].includes(ext) ? ext : "jpg";
@@ -526,12 +532,8 @@ uploadBtn.addEventListener("click", () => {
   imageFile.value = "";
   imageFile.click();
 });
-imageFile.addEventListener("change", async () => {
-  const f = imageFile.files?.[0];
-  if (!f) return;
-  await uploadImage(f);
-});
 
+imageFile.addEventListener("change", async () => {
 // Routing
 async function handleRoute() {
   const r = getRoute();
@@ -557,4 +559,34 @@ function escapeHtml(s){
     .replaceAll("'","&#039;");
 }
 function escapeAttr(s){ return escapeHtml(s); }
+
+function toast(msg) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.style.position = "fixed";
+    el.style.left = "16px";
+    el.style.right = "16px";
+    el.style.bottom = "16px";
+    el.style.padding = "12px 14px";
+    el.style.borderRadius = "14px";
+    el.style.background = "#111827";
+    el.style.color = "#fff";
+    el.style.boxShadow = "0 10px 28px rgba(0,0,0,0.25)";
+    el.style.zIndex = "9999";
+    el.style.display = "none";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = "none"; }, 2500);
+}
+window.addEventListener("error", (e) => {
+  toast("JS-Fehler: " + (e.message || "unbekannt"));
+});
+window.addEventListener("unhandledrejection", (e) => {
+  toast("Promise-Fehler: " + (e.reason?.message || e.reason || "unbekannt"));
+});
 
