@@ -98,3 +98,95 @@
             <div class="saveRow">
               <button class="btn" id="saveMetaBtn" type="button">Name, Kategorie, Soll speichern</button>
             </div>
+
+            <div class="hint" id="hint"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sectionTitle">Letzte Änderungen</div>
+        <div id="logsList" class="logs"></div>
+      </div>
+
+      <div class="card">
+        <div class="sectionTitle">QR-Link</div>
+        <div class="muted" id="qrLink"></div>
+        <div class="muted small">Diesen Link als QR-Code drucken und am Regal anbringen.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- NEW ITEM DIALOG -->
+  <dialog id="newItemDialog" class="dialog">
+    <form method="dialog" class="dialogBody">
+      <div class="dialogTitle">Neuen Artikel anlegen</div>
+
+      <div class="row">
+        <label>ID (für QR, z.B. kaffee_dekaf_1kg)</label>
+        <input id="newId" class="input" placeholder="nur a-z 0-9 _ -" />
+        <div class="muted small">Tipp: ID muss eindeutig sein. „kaffee“ gibt es bei dir schon.</div>
+      </div>
+
+      <div class="row">
+        <label>Name</label>
+        <input id="newName" class="input" placeholder="Kaffee De-Kaf" />
+      </div>
+
+      <div class="row">
+        <label>Kategorie</label>
+        <div class="twoInline">
+          <select id="newCategorySelect" class="select">
+            <option value="">Kategorie wählen…</option>
+          </select>
+          <input id="newCategoryFree" class="input" placeholder="oder neu eintippen" maxlength="40" />
+        </div>
+        <div class="muted small">Wenn du eintippst, wird die Kategorie automatisch neu.</div>
+      </div>
+
+      <div class="twoCol">
+        <div class="row">
+          <label>Soll</label>
+          <input id="newTarget" class="input" type="number" min="0" step="1" value="10" />
+        </div>
+        <div class="row">
+          <label>Ist</label>
+          <input id="newCurrent" class="input" type="number" min="0" step="1" value="0" />
+        </div>
+      </div>
+
+      <div class="hint" id="newHint"></div>
+
+      <div class="dialogActions">
+        <button class="btn ghost" value="cancel">Abbrechen</button>
+        <button class="btn" id="createBtn" value="default">Anlegen</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- PIN DIALOG -->
+  <dialog id="pinDialog" class="dialog">
+    <form method="dialog" class="dialogBody">
+      <div class="dialogTitle">PIN erforderlich</div>
+      <div class="muted small" style="margin-bottom:10px;">
+        Für Änderungen bitte PIN eingeben. Danach musst du sie nicht ständig neu tippen.
+      </div>
+
+      <div class="row">
+        <label>PIN</label>
+        <input id="pinDialogInput" class="input" inputmode="numeric" placeholder="z.B. 4711" />
+      </div>
+
+      <div class="hint" id="pinHint"></div>
+
+      <div class="dialogActions">
+        <button class="btn ghost" value="cancel">Abbrechen</button>
+        <button class="btn" id="pinOkBtn" value="default">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
