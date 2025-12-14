@@ -23,9 +23,6 @@
     <section id="homeView" class="view">
       <div class="toolbar">
         <input id="searchInput" class="input" placeholder="Suchen: Kaffee, Milch, Filter …" />
-        <div class="pinBox">
-          <input id="pinInput" class="input" placeholder="PIN (für Änderungen)" inputmode="numeric" />
-        </div>
       </div>
 
       <div id="itemsGrid" class="grid"></div>
@@ -145,7 +142,27 @@
     </form>
   </dialog>
 
-  <!-- Supabase JS -->
+  <dialog id="pinDialog" class="dialog">
+    <form method="dialog" class="dialogBody">
+      <div class="dialogTitle">PIN erforderlich</div>
+      <div class="muted small" style="margin-bottom:10px;">
+        Für Änderungen bitte PIN eingeben. Danach musst du sie nicht ständig neu tippen.
+      </div>
+
+      <div class="row">
+        <label>PIN</label>
+        <input id="pinDialogInput" class="input" inputmode="numeric" placeholder="z.B. 4711" />
+      </div>
+
+      <div class="hint" id="pinHint"></div>
+
+      <div class="dialogActions">
+        <button class="btn ghost" value="cancel">Abbrechen</button>
+        <button class="btn" id="pinOkBtn" value="default">OK</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
 </body>
