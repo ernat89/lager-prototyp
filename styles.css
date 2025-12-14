@@ -28,13 +28,14 @@ body{
   position:sticky; top:0; z-index:20;
   display:flex; align-items:center; justify-content:space-between;
   padding:14px 16px;
-  background: rgba(255,255,255,0.86);
+  background: rgba(255,255,255,0.88);
   border-bottom:1px solid var(--line);
   backdrop-filter: blur(10px);
 }
 
 .brand .kicker{ color:var(--muted); font-size:12px; }
 .brand .title{ font-size:18px; font-weight:900; margin-top:2px; }
+.brand .sub{ margin-top:6px; font-size:12px; color:var(--muted); min-height:16px; }
 
 .topActions{ display:flex; gap:10px; }
 
@@ -93,22 +94,15 @@ body{
 .btn.ghost{ background:transparent; }
 .btn.secondary{ background:#f9fafb; }
 .btn.primary{ border-color: rgba(22,163,74,0.25); }
-
-.pill{
-  display:inline-flex;
-  align-items:center;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid var(--line);
-  font-size:12px;
-  color:var(--muted);
-  background: #f9fafb;
+.btn.danger{
+  border-color: rgba(220,38,38,0.25);
+  color: var(--bad);
 }
 
 .muted{ color:var(--muted); }
 .small{ font-size:12px; }
 
-#itemsContainer{ display:flex; flex-direction:column; gap:12px; }
+#itemsContainer{ display:flex; flex-direction:column; gap:12px; margin-top:12px; }
 
 .groupTitle{
   font-weight:900;
@@ -210,18 +204,28 @@ label{ color:var(--muted); font-size:13px; }
 .big{ font-size:30px; font-weight:1000; padding: 6px 2px; }
 
 .pillRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+.pill{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  font-size:12px;
+  color:var(--muted);
+  background: #f9fafb;
+}
 .meta{ color:var(--muted); font-size:13px; }
 
 .inner{ background: var(--card2); }
-
 .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
 .saveRow{ margin-top:10px; display:flex; }
 .saveRow .btn{ width:100%; }
+.dangerRow{ margin-top:10px; display:flex; }
+.dangerRow .btn{ width:100%; }
 
 .hint{ margin-top:10px; color:var(--muted); min-height:18px; }
 
 .sectionTitle{ font-weight:900; margin-bottom:10px; }
-
 .logs{ display:flex; flex-direction:column; gap:10px; }
 .logRow{
   display:flex; justify-content:space-between; gap:12px;
