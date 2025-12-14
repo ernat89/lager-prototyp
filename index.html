@@ -118,51 +118,51 @@
   </main>
 
   <!-- NEW ITEM DIALOG -->
-  <dialog id="newItemDialog" class="dialog">
-    <form method="dialog" class="dialogBody">
-      <div class="dialogTitle">Neuen Artikel anlegen</div>
+<dialog id="newItemDialog" class="dialog">
+  <form id="newItemForm" class="dialogBody">
+    <div class="dialogTitle">Neuen Artikel anlegen</div>
 
+    <div class="row">
+      <label>ID (für QR, z.B. kaffee_dekaf_1kg)</label>
+      <input id="newId" class="input" placeholder="nur a-z 0-9 _ -" />
+      <div class="muted small">Tipp: ID muss eindeutig sein.</div>
+    </div>
+
+    <div class="row">
+      <label>Name</label>
+      <input id="newName" class="input" placeholder="Kaffee De-Kaf" />
+    </div>
+
+    <div class="row">
+      <label>Kategorie</label>
+      <div class="twoInline">
+        <select id="newCategorySelect" class="select">
+          <option value="">Kategorie wählen…</option>
+        </select>
+        <input id="newCategoryFree" class="input" placeholder="oder neu eintippen" maxlength="40" />
+      </div>
+    </div>
+
+    <div class="twoCol">
       <div class="row">
-        <label>ID (für QR, z.B. kaffee_dekaf_1kg)</label>
-        <input id="newId" class="input" placeholder="nur a-z 0-9 _ -" />
-        <div class="muted small">Tipp: ID muss eindeutig sein. „kaffee“ gibt es bei dir schon.</div>
+        <label>Soll</label>
+        <input id="newTarget" class="input" type="number" min="0" step="1" value="10" />
       </div>
-
       <div class="row">
-        <label>Name</label>
-        <input id="newName" class="input" placeholder="Kaffee De-Kaf" />
+        <label>Ist</label>
+        <input id="newCurrent" class="input" type="number" min="0" step="1" value="0" />
       </div>
+    </div>
 
-      <div class="row">
-        <label>Kategorie</label>
-        <div class="twoInline">
-          <select id="newCategorySelect" class="select">
-            <option value="">Kategorie wählen…</option>
-          </select>
-          <input id="newCategoryFree" class="input" placeholder="oder neu eintippen" maxlength="40" />
-        </div>
-        <div class="muted small">Wenn du eintippst, wird die Kategorie automatisch neu.</div>
-      </div>
+    <div class="hint" id="newHint"></div>
 
-      <div class="twoCol">
-        <div class="row">
-          <label>Soll</label>
-          <input id="newTarget" class="input" type="number" min="0" step="1" value="10" />
-        </div>
-        <div class="row">
-          <label>Ist</label>
-          <input id="newCurrent" class="input" type="number" min="0" step="1" value="0" />
-        </div>
-      </div>
+    <div class="dialogActions">
+      <button class="btn ghost" id="cancelNewBtn" type="button">Abbrechen</button>
+      <button class="btn" id="createBtn" type="submit">Anlegen</button>
+    </div>
+  </form>
+</dialog>
 
-      <div class="hint" id="newHint"></div>
-
-      <div class="dialogActions">
-        <button class="btn ghost" value="cancel">Abbrechen</button>
-        <button class="btn" id="createBtn" value="default">Anlegen</button>
-      </div>
-    </form>
-  </dialog>
 
   <!-- PIN DIALOG -->
   <dialog id="pinDialog" class="dialog">
@@ -190,4 +190,5 @@
   <script src="./app.js"></script>
 </body>
 </html>
+
 
